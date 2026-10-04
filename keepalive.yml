@@ -1,0 +1,30 @@
+# DentSimco Bot — zamanlanmış iş akışlarını canlı tutar
+# GitHub, herkese açık bir depoda 60 gün boyunca hiçbir işlem (dosya yükleme vb.) olmazsa
+# zamanlanmış iş akışlarını sessizce kapatır. Bu depoya nadiren dosya yükleneceği için borsa botu
+# bir gün kendiliğinden durabilir. Bu iş akışı ayda bir tüm iş akışlarını (kendisi dahil) yeniden
+# "etkinleştirir"; bu, 60 günlük sayacı sıfırlar.
+# Elle denemek için: Actions > DentSimco Canlı Tut > Run workflow (yeşil olmalı)
+name: DentSimco Canlı Tut
+
+on:
+  schedule:
+    - cron: '23 3 1 * *'   # her ayın 1'i, 03:23 UTC (06:23 TR)
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  canli-tut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: İş akışlarını yeniden etkinleştir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for wf in borsa.yml sabit-veri.yml phase.yml keepalive.yml; do
+            gh workflow enable "$wf"
+            echo "etkinleştirildi: $wf"
+          done

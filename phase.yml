@@ -1,0 +1,33 @@
+name: Ekonomi Evresi
+
+on:
+  schedule:
+    # Türkiye saati 18:05, 18:20, 18:35 ve 19:05 (UTC 15:05, 15:20, 15:35, 16:05), sadece cuma
+    - cron: "5 15 * * 5"
+    - cron: "20 15 * * 5"
+    - cron: "35 15 * * 5"
+    - cron: "5 16 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ekonomi-evresi
+  cancel-in-progress: false
+
+jobs:
+  phase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: firebase-admin kur
+        run: npm install --no-save --no-package-lock firebase-admin@12
+      - name: Evreyi çek ve kaydet
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/fetchPhase.mjs
