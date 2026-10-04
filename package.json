@@ -1,0 +1,9 @@
+{
+  "name": "dentsimco-bot",
+  "private": true,
+  "type": "module",
+  "description": "DentSimco veri botları: canlı borsa, sabit veri, ekonomi evresi. Firebase Firestore'a yazar.",
+  "engines": {
+    "node": ">=20"
+  }
+}
