@@ -1,0 +1,32 @@
+# DentSimco — Canlı borsa botu
+# 10 dakikada bir başlar (UTC; Türkiye = UTC+3). Veri kaynağı: Simcotools API (saniyede 2 istek).
+# İki realm için yaklaşık 3-4 dakikada biter.
+# Repo herkese açık olduğu için GitHub Actions dakikası sınırsız.
+# Not: GitHub zamanlanmış çalışmaları yoğun saatlerde birkaç dakika geciktirebilir.
+# Bir çalışma uzun sürerse bir sonraki onu bekler, iki çalışma aynı anda koşmaz.
+name: DentSimco Borsa
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-borsa
+  cancel-in-progress: false
+
+jobs:
+  borsa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: bot
+      - name: Borsa verisini topla
+        run: node bot/market.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
