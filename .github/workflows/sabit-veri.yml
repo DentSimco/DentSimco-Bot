@@ -1,5 +1,6 @@
 # DentSimco — Sabit veri botu
 # Her pazartesi 02:17 UTC'de (05:17 TR) ve istediğin zaman elle çalışır.
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
 name: DentSimco Sabit Veri
 
 on:
@@ -15,8 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           sparse-checkout: bot
       - name: Sabit verileri topla
         run: node bot/constants.mjs
