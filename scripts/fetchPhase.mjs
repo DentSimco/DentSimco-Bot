@@ -1,12 +1,14 @@
 // DentSimco - Ekonomi evresi botu
 // Simcotools'tan güncel ekonomi evresini (resesyon / normal / boom) çeker
 // ve Firestore'da system/phase dokümanına yazar.
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+// Güvenlik: npm paketi (firebase-admin) kullanmaz; botun kendi Firestore bağlantısını (bot/firestore.mjs) kullanır.
+// Böylece gizli anahtar dışarıdan indirilen hiçbir pakete verilmez.
+import { Firestore } from "../bot/firestore.mjs";
 
 const REALMS = [0, 1];
 const API = (realm) => `https://api.simcotools.com/v1/realms/${realm}/phases`;
 const LABELS = { recession: "Resesyon", normal: "Normal", boom: "Boom" };
+const PATH = "system/phase";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -39,11 +41,9 @@ if (!raw) {
   console.error("FIREBASE_SERVICE_ACCOUNT_JSON secret'ı bulunamadı.");
   process.exit(1);
 }
-initializeApp({ credential: cert(JSON.parse(raw)) });
-const db = getFirestore();
-const ref = db.doc("system/phase");
+const db = new Firestore(raw);
 
-const stored = (await ref.get()).data() || {};
+const stored = (await db.getMany([PATH])).get(PATH) || {};
 const now = Date.now();
 const update = {};
 let realm0Failed = false;
@@ -52,11 +52,14 @@ for (const realm of REALMS) {
   const key = `r${realm}`;
   try {
     const data = await getJson(API(realm));
-    if (!Array.isArray(data.ranges) || data.ranges.length === 0) {
+    if (!Array.isArray(data?.ranges) || data.ranges.length === 0) {
       throw new Error("Yanıtta evre listesi (ranges) yok");
     }
     const cur = newestRange(data.ranges);
     if (!LABELS[cur.phase]) throw new Error(`Bilinmeyen evre: ${cur.phase}`);
+    if (!Number.isFinite(Date.parse(cur.start)) || !Number.isFinite(Date.parse(cur.end))) {
+      throw new Error("Evre tarihleri okunamadı");
+    }
 
     // Güncel evrenin bitişi geçmişte kalmışsa Simcotools henüz yeni evreyi yayınlamamıştır.
     if (Date.parse(cur.end) <= now) {
@@ -73,8 +76,8 @@ for (const realm of REALMS) {
     update[key] = {
       phase: cur.phase,
       label: LABELS[cur.phase],
-      start: cur.start,
-      end: cur.end,
+      start: String(cur.start),
+      end: String(cur.end),
       fetchedAt: new Date().toISOString(),
     };
     console.log(`Realm ${realm}: ${LABELS[cur.phase]} (${cur.start} → ${cur.end})`);
@@ -85,7 +88,8 @@ for (const realm of REALMS) {
 }
 
 if (Object.keys(update).length > 0) {
-  await ref.set({ ...update, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  // merge: yalnız değişen realm'in alanı (r0 / r1) ve updatedAt yazılır; diğer realm olduğu gibi kalır
+  await db.commit([{ type: "merge", path: PATH, data: { ...update, updatedAt: now } }]);
   console.log("system/phase güncellendi.");
 } else {
   console.log("Yazılacak değişiklik yok.");
