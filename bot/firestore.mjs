@@ -1,11 +1,13 @@
 // DentSimco Bot v2 — Firestore bağlantısı
 // npm paketi kullanmaz; GitHub'da kurulum adımı olmadığı için her çalışma saniyeler kazanır.
+// Güvenlik: yalnız Firestore yetkisi istenir (datastore). Servis hesabının Google Cloud'daki rolü de
+// yalnız "Cloud Datastore User" olmalı; site yayını için AYRI bir hesap kullanılır.
 
 import crypto from 'node:crypto';
 import { sleep } from './common.mjs';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const SCOPES = 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/cloud-platform';
+const SCOPES = 'https://www.googleapis.com/auth/datastore';
 const MAX_WRITES_PER_COMMIT = 400;
 const MAX_BYTES_PER_COMMIT = 4_000_000;
 
@@ -68,6 +70,10 @@ export class Firestore {
       if ((res.status === 429 || res.status >= 500) && attempt < 2) {
         await sleep(800 * (attempt + 1));
         return this.call(action, body, attempt + 1);
+      }
+      if (res.status === 403) {
+        throw new Error('Firestore izin vermedi (403). Bu depodaki FIREBASE_SERVICE_ACCOUNT_JSON hesabına Google Cloud > IAM\'de '
+          + '"Cloud Datastore User" rolü verilmiş olmalı.');
       }
       throw new Error(`Firestore ${action} ${res.status}: ${text.slice(0, 400)}`);
     }
