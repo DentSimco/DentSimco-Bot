@@ -30,7 +30,8 @@ export class Firestore {
     if (this.token && Date.now() < this.tokenExpires - 60_000) return this.token;
     const now = Math.floor(Date.now() / 1000);
     const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-    const tokenUrl = this.sa.token_uri || TOKEN_URL;
+    // Servis hesabı JSON'undaki token_uri kullanılmaz: imzalı JWT her zaman Google'ın adresine gider (secret bozulsa da başka sunucuya sızmaz).
+    const tokenUrl = TOKEN_URL;
     const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({
       iss: this.sa.client_email, scope: SCOPES, aud: tokenUrl, iat: now, exp: now + 3600,
     })}`;
