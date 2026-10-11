@@ -1,13 +1,14 @@
 // DentSimco Bot v2 — ortak ayarlar ve yardımcı fonksiyonlar
-// Ayar değiştirmek gerekirse sadece CONFIG kısmına dokun.
+// Ayar değiştirmek gerekirse sadece CONFIG kısmına dokun. Borsa turunun hız ve süre ayarları (PACE, FETCH_BUDGET_MS)
+// bot/market.mjs başındadır; sıralama botununki (PACE, BUDGET_MS) bot/ranking.mjs başındadır.
 //
 // FIRESTORE VERİ HARİTASI (dashboard bunları okur)
 //   live/r{realm}                  data = JSON {t, items: {id: [t, {q: [p,a,s,v]}]}}   son ölçüm
 //   intraday/r{realm}_{gün}_s{NN}  t{SSDD} = JSON {id: {q: [p,a,s,v]}}             15 dk'lık noktalar
 //   daily/r{realm}_{id}_{yıl}      d{AAGG} = JSON {q: [açılış,yüksek,düşük,kapanış,ortArz,satış,değer]}
-//   state/r{realm}_s{NN}           data = JSON {t, items: {id: [ilanId,q,fiyat,adet,satıcı,...]}}
 //   meta/products_r{realm}, meta/tradable, meta/buildings, meta/core,
 //   meta/modifiers_r{realm}, meta/retail_r{realm}, meta/status, meta/rollup
+//   meta/mstate_r{realm}           yalnız borsa botu okur (turlar arası biriken satış durumu); dashboard okumaz
 //
 //   p = en düşük satış fiyatı, a = satıştaki toplam adet (arz),
 //   s = tahmini satılan adet (önceki ölçümden beri), v = tahmini satış tutarı
@@ -23,24 +24,7 @@ export const CONFIG = {
   shards: 16,
   rawRetentionDays: 35,
 
-  // Her çalışma 1 dakikanın altında kalsın diye borsa çekme işi bu süre sonunda durur (ms).
-  // Repo herkese açık olduğu için GitHub Actions dakikası sınırsız. Bot 15 dakikada bir başlar ve
-  // tüm ürünler çekilene kadar çalışır; 30 dakikada bitiremezse kalanı sonraki çalışma en bayat üründen sürdürür.
-  fetchBudgetMs: 30 * 60_000,
-  fetchBudgetOnRollupMs: 30 * 60_000,
-
-  // Sunucu "yavaş ol" (429) deyince hız kendiliğinden düşer, sorun çıkmadıkça yeniden artar.
-  // retries: 429 dışındaki hatalarda (sunucu 5xx, bağlantı kopması) kaç kez yeniden denenir. 429'da süre bitene kadar beklenir.
-  market: { concurrency: 6, startIntervalMs: 250, minIntervalMs: 100, maxIntervalMs: 4000, retries: 6 },
-
-  // Sunucu hız sınırı koyduğunda her ürüne yetişilemez. En çok girdi olarak kullanılan ürünler
-  // (Taşıma, Enerji, Su, Tohum, Çelik, Alüminyum...) diğerlerinden yaklaşık 4 kat sık güncellenir.
-  hotProducts: [13, 1, 2, 66, 18, 21, 43, 19, 17, 22, 135, 23, 120, 117],
-  hotFactor: 4,
   constants: { concurrency: 3, delayMs: 300 },
-
-  stateMaxPerQuality: 250,
-  maxRollupDaysPerRun: 3,
 };
 
 const HEADERS = {
@@ -72,7 +56,6 @@ export function addDays(day, n) {
 
 export const PATHS = {
   live: (r) => `live/r${r}`,
-  state: (r, s) => `state/r${r}_s${pad2(s)}`,
   intraday: (r, day, s) => `intraday/r${r}_${day}_s${pad2(s)}`,
   daily: (r, id, year) => `daily/r${r}_${id}_${year}`,
   meta: (name) => `meta/${name}`,
