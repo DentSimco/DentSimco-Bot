@@ -1,0 +1,44 @@
+# DentSimco — Haber masası (Claude API)
+# Günde üç kez çalışır: 05:41, 11:41, 17:41 UTC (TR 08:41, 14:41, 20:41) ve istediğin zaman elle.
+# Simcotools'a istek ATMAZ (yalnız Firestore'daki veriyi okur), bu yüzden borsa botunun hız sınırını etkilemez.
+# Gerekli secret'lar: ANTHROPIC_API_KEY (Claude API anahtarı) ve FIREBASE_SERVICE_ACCOUNT_JSON (borsa botununkiyle aynı).
+# Güvenlik: GitHub eylemleri değişmez commit numarasıyla (SHA) çağrılır; npm paketi kurulum betikleri kapalı kurulur.
+# Paket sürümünü sabitlemek için SDK_VERSION'a sürüm numarası yaz (ör. 0.70.0); boşsa en son sürüm kurulur.
+name: DentSimco Haber
+
+on:
+  schedule:
+    - cron: '41 5,11,17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-haber
+  cancel-in-progress: false
+
+env:
+  SDK_VERSION: ''
+
+jobs:
+  haber:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Claude SDK'sını kur
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "@anthropic-ai/sdk@${SDK_VERSION:-latest}"
+      - name: Sınama
+        run: node bot/news_test.mjs
+      - name: Haberleri yaz
+        run: node bot/news.mjs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
