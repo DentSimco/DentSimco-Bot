@@ -4,6 +4,8 @@
 # Repo herkese açık olduğu için GitHub Actions dakikası sınırsız.
 # Not: GitHub zamanlanmış çalışmaları yoğun saatlerde birkaç dakika geciktirebilir. Çalışmalar üst üste binmez:
 # bir tur sürerken gelen yeni tur bekler (concurrency), çalışan tur iptal edilmez.
+# Şirket sıralaması (bot/ranking.mjs) günde bir kez, 09:00 UTC'den sonraki ilk turda bu işin içinde, borsa çekildikten SONRA
+# çalışır; böylece Simcotools'a hiçbir zaman iki iş birden istek atmaz (saniyede 2 sınırı). O gün borsa turu ~5 dakika uzar.
 # Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
 name: DentSimco Borsa
 
@@ -22,7 +24,7 @@ concurrency:
 jobs:
   borsa:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -35,3 +37,11 @@ jobs:
         run: node bot/market.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Şirket sıralaması (günde bir kez, borsadan sonra; hata verirse borsa turu başarısız sayılmaz)
+        if: github.event_name == 'schedule' && hashFiles('bot/ranking.mjs') != ''
+        continue-on-error: true
+        run: |
+          if [ "$(date -u +%H)" = "09" ]; then node bot/ranking.mjs; else echo "Sıralama saati değil (09 UTC)."; fi
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          RANKING_IF_STALE: '1'
