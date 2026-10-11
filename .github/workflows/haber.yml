@@ -1,5 +1,6 @@
 # DentSimco — Haber masası (Claude API)
-# Günde üç kez çalışır: 05:41, 11:41, 17:41 UTC (TR 08:41, 14:41, 20:41) ve istediğin zaman elle.
+# Günde bir kez çalışır: 05:00 UTC = TR 08:00 (Türkiye UTC+3, yaz saati yok) ve istediğin zaman elle.
+# Not: GitHub zamanlanmış işleri yoğun saatlerde birkaç dakika geciktirebilir.
 # Simcotools'a istek ATMAZ (yalnız Firestore'daki veriyi okur), bu yüzden borsa botunun hız sınırını etkilemez.
 # Gerekli secret'lar: ANTHROPIC_API_KEY (Claude API anahtarı) ve FIREBASE_SERVICE_ACCOUNT_JSON (borsa botununkiyle aynı).
 # Güvenlik: GitHub eylemleri değişmez commit numarasıyla (SHA) çağrılır; npm paketi kurulum betikleri kapalı kurulur.
@@ -8,7 +9,7 @@ name: DentSimco Haber
 
 on:
   schedule:
-    - cron: '41 5,11,17 * * *'
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:

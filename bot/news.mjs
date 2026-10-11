@@ -1,5 +1,5 @@
 // DentSimco Bot — Haber masası (Claude API)
-// GitHub Actions bunu günde üç kez çalıştırır (.github/workflows/haber.yml). Simcotools'a HİÇ istek atmaz:
+// GitHub Actions bunu her sabah 08:00'de (TR) bir kez çalıştırır (.github/workflows/haber.yml). Simcotools'a HİÇ istek atmaz:
 // yalnız diğer botların Firestore'a yazdığı veriyi okur (canlı borsa, günlük özetler, şirket sıralaması, ekonomi evresi).
 //
 // Akış: her realm için veriden bir "masa özeti" (digest) kurulur → Claude hangi haberlerin yazılacağına kendisi karar verir
