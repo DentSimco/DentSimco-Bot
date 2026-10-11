@@ -8,9 +8,9 @@
 // Firestore'a yazılan biçim (dashboard sirketler.js okur):
 //   meta/ranking_r{realm}          data = JSON {v, t, date, total, chunks, size}
 //   meta/ranking_r{realm}_c{NN}    data = JSON [satır, ...]   (NN = 00..; parça başına en çok ROWS_PER_CHUNK satır)
-//   satır = [id, ad, sıra, sıraFarkı, evaSırası, değer, değerFarkı, değerYüzde, bina, patent, işçi, tahvil, ayrıntıVar(0|1)]
+//   satır = [id, ad, sıra, sıraFarkı, evaSırası (1 en iyi, 0 yok), değer, değerFarkı, değerYüzde, bina, patent, işçi, tahvil, ayrıntıVar(0|1)]
 //   meta/ranking_top_r{realm}      data = JSON {t, date, deger: [satır × 10], eva: [satır × 10]}   haber sayfasının köşesi için
-//                                  deger = şirket değerine göre ilk 10 (sıra 1..10), eva = EVA puanı en yüksek 10 (büyük olan iyi; 0 = veri yok)
+//                                  deger = şirket değerine göre ilk 10 (sıra 1..10), eva = EVA sırası en iyi 10 (1 en iyi; 0 = veri yok)
 // Parça sayısı sabit değildir; index belgesindeki `chunks` kadar okunur. Eski parçalar yeni yazımda üzerine yazılır,
 // fazlası silinir.
 
@@ -63,7 +63,8 @@ export function chunkRows(rows, size = ROWS_PER_CHUNK) {
 // Haber sayfası için küçük özet: değer sırasında ve EVA'da ilk n şirket
 export function topLists(rows, n = 10) {
   const deger = [...rows].sort((a, b) => a[2] - b[2]).slice(0, n);
-  const eva = rows.filter((r) => r[12] === 1 && r[4] > 0).sort((a, b) => (b[4] - a[4]) || (a[2] - b[2])).slice(0, n);
+  // EVA sırası: 1 = en çok değer katan şirket (Simcotools). 0 = henüz hesaplanmamış, listeye girmez.
+  const eva = rows.filter((r) => r[12] === 1 && r[4] > 0).sort((a, b) => (a[4] - b[4]) || (a[2] - b[2])).slice(0, n);
   return { deger, eva };
 }
 

@@ -32,7 +32,9 @@ assert.ok('bugunFiyatDegisimiYuzde' in row && 'dunkuIslemHacmiDolar' in row && '
 assert.ok(!('d1' in row) && !('hacimDun' in row));
 for (const k of Object.keys(row)) if (!['id', 'urun'].includes(k)) assert.ok(d.alanlar[k], `alan açıklaması eksik: ${k}`);
 assert.equal(d.piyasa.gunlukDusenler[0].id, 1);
-assert.equal(d.sirketler.degerIlk10[0].degerYuzde, 1);
+assert.equal(d.sirketler.degerIlk10[0].gunlukDegerFarkiYuzde, 1);
+assert.equal(d.sirketler.degerIlk10[0].evaSirasi, 5);
+assert.ok(d.alanlar.evaSirasi.includes('1 = en çok'));
 assert.ok(Object.keys(d.piyasa.seriler).length > 0);
 assert.deepEqual(d.oncekiBasliklar, ['eski']);
 

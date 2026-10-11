@@ -78,6 +78,9 @@ export const ALANLAR = {
   dunkuSatilanAdet: 'Dün o kalitede satılan ADET (işlem hacmi; fiyat DEĞİL).',
   haftalikOrtalamaGunlukIslemHacmiDolar: 'Son 7 günün ortalama günlük işlem hacmi ($).',
   kalite: 'Kalite seviyesi; metinde ürün adıyla birlikte yazılır (ör. "Çelik (Q0)").',
+  degerSirasi: 'Şirket değerine göre sıra (1 = en değerli şirket).',
+  evaSirasi: 'EVA (katma değer) sırası: 1 = en çok değer katan şirket; büyük sayı daha kötü. EVA ilk 10 listesi 1\'den başlar.',
+  gunlukDegerFarkiDolar: 'Şirket değerinin dünden bugüne değişimi ($).',
   seriler: 'Ürünün son 21 günlük günlük kapanış fiyatları [AA-GG, $]; grafikte bunun sonuna bugünkü canlı fiyat eklenir.',
 };
 
@@ -92,7 +95,7 @@ export function buildDigest({ realm, now, products, ranking, phase, previous }) 
   const hacim = by('hacimDun', -1, 12, products);
   const featured = new Map();
   for (const p of [...yukselen1, ...dusen1, ...yukselen7, ...dusen7, ...hacim]) featured.set(p.id, p);
-  const rk = (r) => ({ id: r[0], ad: r[1], sira: r[2], siraFarki: r[3], eva: r[4], deger: r[5], degerFarki: r[6], degerYuzde: round(r[7] * 100, 2) });
+  const rk = (r) => ({ id: r[0], ad: r[1], degerSirasi: r[2], siraFarki: r[3], evaSirasi: r[4], degerDolar: r[5], gunlukDegerFarkiDolar: r[6], gunlukDegerFarkiYuzde: round(r[7] * 100, 2) });
   return {
     realm: realm === 0 ? 'Realm 1 (R1)' : 'Realm 2 (R2)',
     an: new Date(now).toISOString(),
