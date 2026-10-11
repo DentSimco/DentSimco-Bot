@@ -47,7 +47,7 @@ const fakeOut = {
 let req = null;
 const client = { beta: { messages: { stream(r) { req = r; return { finalMessage: async () => ({ stop_reason: 'end_turn', model: r.model, usage: {}, content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(fakeOut) }] }) }; } } } };
 const { out } = await askClaude(d, { client });
-assert.equal(req.model, 'claude-opus-5-5');
+assert.equal(req.model, 'claude-sonnet-5-5');
 assert.equal(req.output_config.format.type, 'json_schema');
 assert.equal(req.fallbacks, 'default');
 assert.deepEqual(req.betas, ['server-side-fallback-2026-07-01']);

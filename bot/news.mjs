@@ -17,7 +17,7 @@ import { CONFIG, PATHS, parseJSON, round, runIfMain, utcDay, addDays } from './c
 import { Firestore } from './firestore.mjs';
 
 const VERSION = 1;
-export const MODEL = 'claude-opus-5-5';
+export const MODEL = 'claude-sonnet-5-5';
 const MAX_ITEMS = 18;          // sayfadaki haber listesi (manşet hariç)
 const SERIES_DAYS = 21;        // grafik için gün sayısı
 export const KATEGORILER = ['PİYASA', 'ÜRETİM', 'ŞİRKETLER', 'EKONOMİ', 'PERAKENDE', 'ANALİZ'];
