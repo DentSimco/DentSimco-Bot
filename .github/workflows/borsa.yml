@@ -33,6 +33,9 @@ jobs:
       - name: Sınama (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
         continue-on-error: true
         run: node bot/market_test.mjs
+      - name: Güvenlik sınaması, JWT yalnız Google'a gider (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+        continue-on-error: true
+        run: node bot/firestore_test.mjs
       - name: Borsa verisini topla
         run: node bot/market.mjs
         env:
