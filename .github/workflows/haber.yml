@@ -4,7 +4,9 @@
 # Simcotools'a istek ATMAZ (yalnız Firestore'daki veriyi okur), bu yüzden borsa botunun hız sınırını etkilemez.
 # Gerekli secret'lar: ANTHROPIC_API_KEY (Claude API anahtarı) ve FIREBASE_SERVICE_ACCOUNT_JSON (borsa botununkiyle aynı).
 # Güvenlik: GitHub eylemleri değişmez commit numarasıyla (SHA) çağrılır; npm paketi kurulum betikleri kapalı kurulur.
-# Paket sürümünü sabitlemek için SDK_VERSION'a sürüm numarası yaz (ör. 0.70.0); boşsa en son sürüm kurulur.
+# Claude SDK'sı SDK_VERSION'daki sürüme SABİTLENDİ (ANTHROPIC_API_KEY ve Firebase anahtarı bu paketin çalıştığı adımda durur;
+# 'latest' kurulursa yarın yayınlanacak bir sürüm bu gizli bilgileri görürdü). Yükseltmek için sürümü bilerek değiştir:
+# önce Actions > DentSimco Haber > Run workflow ile dene. Boş bırakılırsa kurulum hata verir.
 name: DentSimco Haber
 
 on:
@@ -20,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SDK_VERSION: ''
+  SDK_VERSION: '0.133.0'
 
 jobs:
   haber:
@@ -35,7 +37,7 @@ jobs:
         with:
           node-version: 22
       - name: Claude SDK'sını kur
-        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "@anthropic-ai/sdk@${SDK_VERSION:-latest}"
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "@anthropic-ai/sdk@${SDK_VERSION:?SDK_VERSION boş olamaz}"
       - name: Sınama
         run: node bot/news_test.mjs
       - name: Haberleri yaz
