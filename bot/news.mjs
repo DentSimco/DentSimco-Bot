@@ -54,13 +54,32 @@ export function productDigest({ id, ad, live, dailyByDay, today }) {
   const hacim7 = days.slice(-7).reduce((s, d) => s + tutar(d), 0) / 7;
   return {
     id, ad, q,
-    fiyat, dun, d1: pct(fiyat, dun), d7: pct(dun, once7),
+    fiyat, dun, d1: pct(fiyat, dun), d7: pct(dun, once7), d21: pct(fiyat ?? dun, seri[0]?.[1]),
     hacimDun: Math.round(tutar(yesterday)), adetDun: Math.round(adet(yesterday)), hacim7: Math.round(hacim7),
     seri,
   };
 }
 
-const short = (p) => ({ id: p.id, ad: p.ad, q: p.q, fiyat: p.fiyat, dun: p.dun, d1: p.d1, d7: p.d7, hacimDun: p.hacimDun, hacim7: p.hacim7 });
+// Alan adları modelin yanlış okumasın diye açık yazılır (fiyat ile işlem hacmi, dönemler ayrı ayrı).
+const short = (p) => ({
+  id: p.id, urun: p.ad, kalite: `Q${p.q}`,
+  canliFiyat: p.fiyat, dunkuKapanis: p.dun,
+  bugunFiyatDegisimiYuzde: p.d1, haftalikFiyatDegisimiYuzde: p.d7, yirmiBirGunlukFiyatDegisimiYuzde: p.d21,
+  dunkuIslemHacmiDolar: p.hacimDun, dunkuSatilanAdet: p.adetDun, haftalikOrtalamaGunlukIslemHacmiDolar: p.hacim7,
+});
+
+export const ALANLAR = {
+  canliFiyat: 'Bugünkü son işlem fiyatı ($, ürünün ana kalitesinde)',
+  dunkuKapanis: 'Dün günün kapanış fiyatı ($, aynı kalite)',
+  bugunFiyatDegisimiYuzde: 'canliFiyat ile dunkuKapanis arasındaki FİYAT değişimi (%). "Bugün" ya da "dünkü kapanışa göre" diye yazılır.',
+  haftalikFiyatDegisimiYuzde: 'Dünkü kapanış ile 7 gün önceki kapanış arasındaki FİYAT değişimi (%). "Son bir haftada" diye yazılır.',
+  yirmiBirGunlukFiyatDegisimiYuzde: 'Grafiğin başından (21 gün önce) bugüne FİYAT değişimi (%). Haberin yanındaki grafik bu dönemi gösterir.',
+  dunkuIslemHacmiDolar: 'Dün o kalitede el değiştiren malın toplam DOLAR tutarı (işlem hacmi; fiyat DEĞİL).',
+  dunkuSatilanAdet: 'Dün o kalitede satılan ADET (işlem hacmi; fiyat DEĞİL).',
+  haftalikOrtalamaGunlukIslemHacmiDolar: 'Son 7 günün ortalama günlük işlem hacmi ($).',
+  kalite: 'Kalite seviyesi; metinde ürün adıyla birlikte yazılır (ör. "Çelik (Q0)").',
+  seriler: 'Ürünün son 21 günlük günlük kapanış fiyatları [AA-GG, $]; grafikte bunun sonuna bugünkü canlı fiyat eklenir.',
+};
 
 // Modelin göreceği özet: listeler kısa tutulur (token ve dikkat için), öne çıkan ürünlerin serisi eklenir.
 export function buildDigest({ realm, now, products, ranking, phase, previous }) {
@@ -78,6 +97,7 @@ export function buildDigest({ realm, now, products, ranking, phase, previous }) 
     realm: realm === 0 ? 'Realm 1 (R1)' : 'Realm 2 (R2)',
     an: new Date(now).toISOString(),
     ekonomiEvresi: phase || 'bilinmiyor',
+    alanlar: ALANLAR,
     piyasa: {
       urunSayisi: products.length,
       gunlukYukselenler: yukselen1.map(short),
@@ -146,7 +166,15 @@ Görevin:
 
 Kurallar:
 - YALNIZ özetteki sayıları kullan. Sayı, şirket, ürün, olay uydurma. Bir nedeni veri göstermiyorsa neden uydurma; olasılık olarak ve ölçülü dille söyle ("arz daralmış olabilir" gibi), kesinmiş gibi yazma.
-- Fiyatlar dolar ($) ve oyundaki birimlerdir. Yüzdeleri bir ondalıkla yaz (Türkçede virgülle: %3,2). Q kalite seviyesidir (Q0, Q1...).
+- Fiyatlar dolar ($) ve oyundaki birimlerdir. Yüzdeleri bir ondalıkla yaz (Türkçede virgülle: %3,2). Sayıları Türkçe biçimle yaz: binlik nokta, ondalık virgül ($2.460, $0,278).
+- Her alanın anlamı "alanlar" içinde yazılı; ona göre kullan.
+
+Netlik kuralları (en önemlileri; okur kafası karışmadan anlamalı):
+- FİYAT ile İŞLEM HACMİNİ asla karıştırma. "Yükseldi / geriledi / düştü" yalnız fiyat için kullanılır ve cümlede "fiyatı" kelimesi geçer ("Çelik (Q0) fiyatı bugün %3,2 geriledi"). Hacimden söz ederken açıkça "işlem hacmi" de ve birimini yaz ("dün 825 milyon dolarlık işlem hacmi", "dün 12.400 adet satıldı"). Hacim tek başına "825 milyon" gibi birimsiz yazılmaz.
+- Her yüzdenin DÖNEMİNİ yaz: "bugün (dünkü kapanışa göre)", "son bir haftada", "son 21 günde". Dönemi yazılmamış yüzde kullanma.
+- Yön tutarlı olmalı: fiyat bir dönemde düşmüşse o dönem için "yükseldi" yazma. Kısa ve uzun dönem ters yöndeyse ikisini de dönemiyle yaz ("bugün %1,6 yükseldi; son 21 günde ise %4 geride").
+- Ürün adını her haberde ilk geçtiği yerde kalitesiyle yaz: "İnşaat gereci (Q0)". Başlıkta da kalite yer alsın.
+- Haberde grafik varsa (urun_id), grafik son 21 günü ve bugünkü canlı fiyatı gösterir; metindeki dönemler bununla çelişmesin.
 - Üslup: Bloomberg ve BBC haber dili. Kısa, net, bilgi yoğun; ilk cümle haberin özü. Abartı, ünlem, yatırım tavsiyesi yok ("al", "sat" deme; "fiyat yükseldi" de).
 - Türkçe metin asıl metindir; İngilizce metin aynı haberin doğal İngilizce karşılığıdır (birebir çeviri değil, aynı içerik).
 - Ürün adlarını özette yazıldığı gibi kullan. İngilizce metinde ürünün oyundaki İngilizce adını biliyorsan onu kullan.
@@ -196,7 +224,7 @@ export function toArticles(out, { now, seriler }) {
     const en = cleanText(h?.en) || tr;
     const kategori = KATEGORILER.includes(h?.kategori) ? h.kategori : 'PİYASA';
     const s = Number.isInteger(h?.urun_id) ? seriler[h.urun_id] : null;
-    return { id: id(), t: now, kategori, tr, en, grafik: s ? { id: h.urun_id, ad: s.ad, q: s.q, seri: s.seri } : null };
+    return { id: id(), t: now, kategori, tr, en, grafik: s ? { id: h.urun_id, ad: s.ad, q: s.q, seri: s.seri, canli: s.canli ?? null } : null };
   };
   const manset = article(out?.manset);
   if (!manset) throw new Error('Manşet boş ya da bozuk geldi');
@@ -249,7 +277,7 @@ async function realmIssue(db, r, now, shared) {
   const previous = [prev?.manset, ...(prev?.haberler || [])].filter(Boolean).slice(0, 12).map((h) => h.tr?.baslik);
   const digest = buildDigest({ realm: r, now, products, ranking, phase, previous });
   const { out, usage, model } = await askClaude(digest);
-  const seriler = Object.fromEntries(products.map((p) => [p.id, { ad: p.ad, q: p.q, seri: p.seri }]));
+  const seriler = Object.fromEntries(products.map((p) => [p.id, { ad: p.ad, q: p.q, seri: p.seri, canli: p.fiyat }]));
   const issue = mergeIssue(prev, toArticles(out, { now, seriler }));
   const fiyatlar = Object.fromEntries(products.map((p) => [p.id, [p.ad, p.dun, p.q]]));
   const doc = { v: VERSION, t: now, model, ...issue, fiyatlar };
