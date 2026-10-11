@@ -1,19 +1,18 @@
-# DentSimco — Şirket sıralaması botu
-# Her gün 09:23 UTC'de (12:23 TR) ve istediğin zaman elle çalışır. Simcotools sıralamasının ayrıntıları sayfa sayfa
-# sabaha doğru dolar (son sayfalar ~07:40 UTC), bu yüzden bot öğleye yakın başlar. İki realm için ~520 istek (saniyede en çok 2), ~5 dakika.
+# DentSimco — Şirket sıralaması botu (YALNIZ ELLE)
+# Günlük çalışma borsa.yml içindedir (borsa turundan sonra, aynı işte) ki Simcotools'a iki iş birden istek atmasın.
+# Bu iş elle (Actions > Run workflow) çalıştırılır ve borsa ile AYNI kuyruğu (concurrency) paylaşır: borsa turu sürerken sıra bekler.
+# Not: borsa ve bu iş aynı kuyrukta olduğundan bekleyen en yeni çalışma öncekini iptal eder; elle çalıştırınca borsa turu atlanabilir.
 # Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
 name: DentSimco Siralama
 
 on:
-  schedule:
-    - cron: '23 9 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: dentsimco-siralama
+  group: dentsimco-borsa
   cancel-in-progress: false
 
 jobs:

@@ -12,7 +12,7 @@
 // Parça sayısı sabit değildir; index belgesindeki `chunks` kadar okunur. Eski parçalar yeni yazımda üzerine yazılır,
 // fazlası silinir.
 
-import { CONFIG, createPacer, fetchPaced, round, runIfMain } from './common.mjs';
+import { CONFIG, createPacer, fetchPaced, parseJSON, round, runIfMain } from './common.mjs';
 import { Firestore } from './firestore.mjs';
 
 const VERSION = 1;
@@ -21,6 +21,7 @@ const PAGE_SIZE = 100;
 const ROWS_PER_CHUNK = 2000; // ~120 bayt/satır → parça başına ~250 KB (Firestore sınırı 1 MiB)
 const MAX_OLD_CHUNKS = 40;   // eski parçaları silerken bakılan üst sınır
 const BUDGET_MS = 25 * 60_000;
+const FRESH_MS = 20 * 3600_000; // RANKING_IF_STALE=1 iken bu süreden yeni sıralama varsa realm atlanır (günde bir çalışma)
 const MIN_SHARE = 0.98;      // sayfaların en az bu kadarı gelmeden realm yazılmaz (yarım liste eski ama tam listeyi bozmasın)
 const PACE = { startIntervalMs: 550, minIntervalMs: 550, maxIntervalMs: 4000, retries: 4 };
 
@@ -83,7 +84,12 @@ export async function main() {
   const lines = [];
   let wrote = 0;
 
+  const ifStale = process.env.RANKING_IF_STALE === '1';
+  const prev = ifStale ? await db.getMany(CONFIG.realms.map((r) => `meta/ranking_r${r}`)) : new Map();
+
   for (const r of CONFIG.realms) {
+    const last = Number(parseJSON(prev.get(`meta/ranking_r${r}`)?.data)?.t) || 0;
+    if (ifStale && t0 - last < FRESH_MS) { lines.push(`r${r}: güncel, atlandı`); wrote++; continue; }
     const got = await fetchRealm(r, deadline);
     const rows = buildRows(got.pages);
     const okPages = got.last - got.failed;
