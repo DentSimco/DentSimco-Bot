@@ -16,6 +16,7 @@ assert.equal(p.q, 1);
 assert.equal(p.dun, 99);
 assert.equal(p.d1, 11.11);       // 110 / 99
 assert.equal(p.d7, 7.61);        // 99 / 92
+assert.equal(p.d21, 39.24);      // 110 / 79 (grafiğin başı → bugün)
 assert.equal(p.hacimDun, 5000);
 assert.equal(p.seri.length, 21);
 assert.deepEqual(p.seri.at(-1), [day(-1), 99]);
@@ -24,6 +25,12 @@ assert.equal(productDigest({ id: 8, ad: 'X', live: null, dailyByDay: new Map(), 
 const products = Array.from({ length: 12 }, (_, i) => ({ ...p, id: i + 1, ad: `Ürün ${i + 1}`, d1: i - 5, d7: 5 - i, hacimDun: i * 100 }));
 const d = buildDigest({ realm: 0, now: 0, products, ranking: { date: 'x', deger: [[1, 'A', 1, 0, 5, 100, 1, 0.01]], eva: [] }, phase: 'boom', previous: ['eski'] });
 assert.equal(d.piyasa.gunlukYukselenler[0].id, 12);
+// Modelin gördüğü alanlar açık adlı; fiyat ile hacim ayrı
+const row = d.piyasa.gunlukYukselenler[0];
+assert.equal(row.kalite, 'Q1');
+assert.ok('bugunFiyatDegisimiYuzde' in row && 'dunkuIslemHacmiDolar' in row && 'dunkuSatilanAdet' in row);
+assert.ok(!('d1' in row) && !('hacimDun' in row));
+for (const k of Object.keys(row)) if (!['id', 'urun'].includes(k)) assert.ok(d.alanlar[k], `alan açıklaması eksik: ${k}`);
 assert.equal(d.piyasa.gunlukDusenler[0].id, 1);
 assert.equal(d.sirketler.degerIlk10[0].degerYuzde, 1);
 assert.ok(Object.keys(d.piyasa.seriler).length > 0);
@@ -56,8 +63,9 @@ assert.deepEqual(out, fakeOut);
 const refuse = { beta: { messages: { stream: () => ({ finalMessage: async () => ({ stop_reason: 'refusal', stop_details: { category: 'x' }, content: [] }) }) } } };
 await assert.rejects(askClaude(d, { client: refuse }), /reddetti/);
 
-const art = toArticles(out, { now: 1000, seriler: { 7: { ad: 'Elma', q: 1, seri: [[day(-1), 99]] } } });
+const art = toArticles(out, { now: 1000, seriler: { 7: { ad: 'Elma', q: 1, seri: [[day(-1), 99]], canli: 110 } } });
 assert.equal(art.manset.grafik.ad, 'Elma');
+assert.equal(art.manset.grafik.canli, 110);
 assert.deepEqual(art.manset.tr.govde, ['p1', 'p2']);
 assert.equal(art.haberler.length, 1, 'boş haber atılır');
 assert.equal(art.haberler[0].kategori, 'PİYASA', 'bilinmeyen kategori PİYASA olur');
