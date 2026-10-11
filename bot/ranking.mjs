@@ -9,6 +9,8 @@
 //   meta/ranking_r{realm}          data = JSON {v, t, date, total, chunks, size}
 //   meta/ranking_r{realm}_c{NN}    data = JSON [satır, ...]   (NN = 00..; parça başına en çok ROWS_PER_CHUNK satır)
 //   satır = [id, ad, sıra, sıraFarkı, evaSırası, değer, değerFarkı, değerYüzde, bina, patent, işçi, tahvil, ayrıntıVar(0|1)]
+//   meta/ranking_top_r{realm}      data = JSON {t, date, deger: [satır × 10], eva: [satır × 10]}   haber sayfasının köşesi için
+//                                  deger = şirket değerine göre ilk 10 (sıra 1..10), eva = EVA puanı en yüksek 10 (büyük olan iyi; 0 = veri yok)
 // Parça sayısı sabit değildir; index belgesindeki `chunks` kadar okunur. Eski parçalar yeni yazımda üzerine yazılır,
 // fazlası silinir.
 
@@ -58,6 +60,13 @@ export function chunkRows(rows, size = ROWS_PER_CHUNK) {
   return out;
 }
 
+// Haber sayfası için küçük özet: değer sırasında ve EVA'da ilk n şirket
+export function topLists(rows, n = 10) {
+  const deger = [...rows].sort((a, b) => a[2] - b[2]).slice(0, n);
+  const eva = rows.filter((r) => r[12] === 1 && r[4] > 0).sort((a, b) => (b[4] - a[4]) || (a[2] - b[2])).slice(0, n);
+  return { deger, eva };
+}
+
 const chunkPath = (r, i) => `meta/ranking_r${r}_c${String(i).padStart(2, '0')}`;
 
 async function fetchRealm(r, deadline) {
@@ -102,6 +111,7 @@ export async function main() {
     for (let i = chunks.length; i < MAX_OLD_CHUNKS; i++) writes.push({ type: 'delete', path: chunkPath(r, i) });
     const index = { v: VERSION, t: t0, date: got.date, total: rows.length, chunks: chunks.length, size: ROWS_PER_CHUNK };
     writes.push({ type: 'set', path: `meta/ranking_r${r}`, data: { data: JSON.stringify(index), u: t0 } });
+    writes.push({ type: 'set', path: `meta/ranking_top_r${r}`, data: { data: JSON.stringify({ t: t0, date: got.date, ...topLists(rows) }), u: t0 } });
     wrote++;
     lines.push(`r${r}: ${rows.length} şirket, ${chunks.length} parça, ${okPages}/${got.last} sayfa, 429=${got.throttled}`);
   }
