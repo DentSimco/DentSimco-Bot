@@ -12,6 +12,15 @@ on:
   schedule:
     - cron: '40 19 * * *'
   workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Değere göre ilk kaç şirket (boş = hepsi; sınırlı çalışma bitmiş sayılmaz, sonraki çalışma sürer)'
+        required: false
+        default: ''
+      since:
+        description: 'Bu günden itibaren doldur (YYYY-MM-DD; boş = 2026-09-29)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -36,3 +45,6 @@ jobs:
         run: node bot/history_backfill.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          # Boş bırakılırsa (gece çalışması dahil) 29 Eylül'den itibaren doldurulur; son 30 günün dışına çıkmaz
+          BACKFILL_SINCE: ${{ inputs.since || '2026-09-29' }}

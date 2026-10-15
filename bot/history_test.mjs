@@ -50,6 +50,8 @@ assert.equal(apiDay({ date: 'x', rank: 1, value: 1 }), null);
 const days = apiDays({ history: [api('2026-10-15T00:00:00Z'), api('2026-10-14T00:00:00Z'), api('2026-09-16T00:00:00Z'), api('2026-09-15T00:00:00Z')] }, 20261015);
 assert.deepEqual(days.map((x) => x[0]), [20260916, 20261014, 20261015], '15 Eylül 30 gün dışında');
 
+assert.deepEqual(apiDays({ history: [api('2026-10-15T00:00:00Z'), api('2026-09-29T00:00:00Z'), api('2026-09-28T00:00:00Z')] }, 20261015, 20260929).map((x) => x[0]), [20260929, 20261015], 'since: 29 Eylül ve sonrası');
+
 // updateHistory: sahte Firestore ile; ikinci gün eklenir, 30 güne ulaşınca geri doldurma belgeleri silinir
 const db = (() => {
   const store = new Map();
