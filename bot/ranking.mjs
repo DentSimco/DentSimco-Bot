@@ -9,6 +9,7 @@
 //   meta/ranking_r{realm}          data = JSON {v, t, date, total, chunks, size}
 //   meta/ranking_r{realm}_c{NN}    data = JSON [satır, ...]   (NN = 00..; parça başına en çok ROWS_PER_CHUNK satır)
 //   satır = [id, ad, sıra, sıraFarkı, evaSırası (1 en iyi, 0 yok), değer, değerFarkı, değerYüzde, bina, patent, işçi, tahvil, ayrıntıVar(0|1)]
+//   Her sıralama yazımından sonra geçmiş de eklenir (history.mjs: şirket başına son 30 gün).
 //   meta/ranking_top_r{realm}      data = JSON {t, date, deger: [satır × 10], eva: [satır × 10]}   haber sayfasının köşesi için
 //                                  deger = şirket değerine göre ilk 10 (sıra 1..10), eva = EVA sırası en iyi 10 (1 en iyi; 0 = veri yok)
 // Index belgesinde ayrıca `detail` (ayrıntısı gelmiş şirket sayısı) bulunur; botun yeniden çekme kararı için kullanılır.
@@ -17,6 +18,7 @@
 
 import { CONFIG, createPacer, fetchPaced, parseJSON, round, runIfMain } from './common.mjs';
 import { Firestore } from './firestore.mjs';
+import { updateHistory } from './history.mjs';
 
 const VERSION = 1;
 const API = 'https://api.simcotools.com/v1';
@@ -103,6 +105,7 @@ export async function main() {
   const deadline = t0 + BUDGET_MS;
   const writes = [];
   const lines = [];
+  const pendingHistory = []; // sıralama yazıldıktan sonra geçmiş eklenir; geçmişteki hata sıralamayı bozmaz
   let wrote = 0;
 
   const ifStale = process.env.RANKING_IF_STALE === '1';
@@ -129,10 +132,14 @@ export async function main() {
     writes.push({ type: 'set', path: `meta/ranking_r${r}`, data: { data: JSON.stringify(index), u: t0 } });
     writes.push({ type: 'set', path: `meta/ranking_top_r${r}`, data: { data: JSON.stringify({ t: t0, date: got.date, ...topLists(rows) }), u: t0 } });
     wrote++;
+    pendingHistory.push(async () => {
+      try { const h = await updateHistory(db, r, rows, got.date, t0); return `r${r}: ${h.skipped ? 'geçmiş yazılmadı (sıralama tarihi yok)' : `geçmiş ${h.days} gün`}`; } catch (e) { return `r${r}: geçmiş HATA: ${e?.message || e}`; }
+    });
     lines.push(`r${r}: ${rows.length} şirket, ${chunks.length} parça, ${okPages}/${got.last} sayfa, 429=${got.throttled}`);
   }
 
   if (writes.length) await db.commit(writes);
+  for (const run of pendingHistory) lines.push(await run());
   console.log(`DentSimco sıralama | ${lines.join(' | ')} | ${((Date.now() - t0) / 1000).toFixed(0)} sn`);
   if (!wrote) throw new Error('Hiçbir realmın sıralaması alınamadı. Simcotools API erişimini kontrol et.');
 }
