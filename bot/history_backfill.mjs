@@ -6,7 +6,7 @@
 // Yazdığı belgeler günlük geçmişten AYRIDIR (meta/rhistbf_r{realm}_{NNN}); böylece iki yazar birbirinin belgesini ezmez.
 // Elle çalıştırırken sınır verilebilir (iş akışı girdileri): BACKFILL_LIMIT = değere göre ilk N şirket, BACKFILL_SINCE = YYYY-MM-DD (bu günden itibaren).
 // Sınırlı çalışma "bitti" sayılmaz; sonraki çalışma kaldığı yerden sürer.
-// Hız: borsa botuyla aynı Simcotools sınırını paylaştığı için yavaştır (≈1 istek/sn); 429 gelirse kendiliğinden yavaşlar.
+// Hız: ≈2-3 istek/sn (borsa botu duraklatıldığı sürece); 429 gelirse kendiliğinden yavaşlar. Borsa açıkken aynı sınırı paylaşır, o zaman BORSA_DURAKLAT'ı '0' yapınca hız 429'larla kendiliğinden düşer.
 
 import { CONFIG, createPacer, fetchPaced, parseJSON, runIfMain } from './common.mjs';
 import { Firestore } from './firestore.mjs';
@@ -15,7 +15,10 @@ import { HIST_DAYS, HIST_CHUNKS, histBfPath, histIndexPath, histChunkOf, dayNum,
 const API = 'https://api.simcotools.com/v1';
 const BUDGET_MS = 5 * 3600_000; // GitHub işi en çok 6 saat; kaydetmeye pay bırakılır
 const CHECKPOINT = 500;          // şirket
-const PACE = { startIntervalMs: 1100, minIntervalMs: 1000, maxIntervalMs: 6000, retries: 3 };
+// Borsa botu duraklatıldığında (borsa.yml BORSA_DURAKLAT) Simcotools sınırı (≈2 istek/sn) bu işe kalır: 0,5 sn aralıkla başlar,
+// sorunsuz giderse 0,35 sn'ye kadar hızlanır; 429 gelince herkes birlikte bekler ve aralık büyür (common.mjs createPacer).
+const PACE = { startIntervalMs: 500, minIntervalMs: 350, maxIntervalMs: 6000, retries: 3 };
+const PARALEL = 16; // aynı anda bekleyen istek; hızı pacer sınırlar, yanıt gecikmesi hızı düşürmesin diye
 const progressPath = (r) => `meta/rhistbf_p_r${r}`;
 
 // API geçmiş satırı → geçmiş günü [YYYYMMDD, sıra, eva, değer, bina, patent, işçi, bono, ayrıntıVar] (history.mjs ile aynı biçim)
@@ -48,7 +51,7 @@ async function rankedIds(db, r) {
   return { ids: rows.map((x) => x[0]), date: idx.date };
 }
 
-async function backfillRealm(db, r, deadline, lines) {
+export async function backfillRealm(db, r, deadline, lines) {
   const idxDoc = parseJSON((await db.getMany([histIndexPath(r)])).get(histIndexPath(r))?.data);
   if (idxDoc?.days?.length >= HIST_DAYS) { lines.push(`r${r}: günlük geçmiş ${idxDoc.days.length} güne ulaştı, atlandı`); return; }
   const prog = parseJSON((await db.getMany([progressPath(r)])).get(progressPath(r))?.data) || { done: 0, finished: false, failed: 0 };
@@ -75,23 +78,26 @@ async function backfillRealm(db, r, deadline, lines) {
     dirty.clear();
   };
 
-  for (; i < sinir; i++) {
-    const id = list.ids[i];
-    try {
-      const json = await fetchPaced(`${API}/realms/${r}/companies/${id}/history?page=1&page_size=${HIST_DAYS + 1}`, pacer, { deadline, retries: PACE.retries });
-      const days = apiDays(json, refDay, since);
-      if (days.length) {
-        const c = histChunkOf(id);
-        let list2 = maps[c][id] || [];
-        for (const x of days) list2 = mergeDays(list2, x, refDay);
-        maps[c][id] = list2;
-        dirty.add(c);
-      }
-    } catch (e) {
-      if (e?.deadline) break;
-      failed++; // tek şirketin hatası (ör. silinmiş) işi durdurmaz
+  const bir = async (id) => {
+    const json = await fetchPaced(`${API}/realms/${r}/companies/${id}/history?page=1&page_size=${HIST_DAYS + 1}`, pacer, { deadline, retries: PACE.retries });
+    const days = apiDays(json, refDay, since);
+    if (days.length) {
+      const c = histChunkOf(id);
+      let liste = maps[c][id] || [];
+      for (const x of days) liste = mergeDays(liste, x, refDay);
+      maps[c][id] = liste;
+      dirty.add(c);
     }
-    if ((i + 1) % CHECKPOINT === 0) await save(false);
+  };
+  // Küçük gruplar halinde paralel: ilerleme (i) yalnız grup tamamen bitince ilerler; süre dolarsa grup baştan alınır (birleştirme tekrarlanabilir)
+  let sonKayit = i;
+  while (i < sinir) {
+    const grup = list.ids.slice(i, Math.min(sinir, i + PARALEL));
+    const sonuc = await Promise.all(grup.map((id) => bir(id).then(() => 0, (e) => (e?.deadline ? 2 : 1))));
+    if (sonuc.includes(2)) break;
+    failed += sonuc.filter((x) => x === 1).length; // tek şirketin hatası (ör. silinmiş) işi durdurmaz
+    i += grup.length;
+    if (i - sonKayit >= CHECKPOINT) { await save(false); sonKayit = i; }
   }
   const finished = i >= list.ids.length;
   await save(finished);
