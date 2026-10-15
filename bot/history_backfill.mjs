@@ -5,7 +5,7 @@
 // sonraki çalışma kaldığı yerden devam eder. Bitince ya da günlük geçmiş 30 güne tamamlanınca (history.mjs belgeleri siler) kendiliğinden durur.
 // Yazdığı belgeler günlük geçmişten AYRIDIR (meta/rhistbf_r{realm}_{NNN}); böylece iki yazar birbirinin belgesini ezmez.
 // Elle çalıştırırken sınır verilebilir (iş akışı girdileri): BACKFILL_LIMIT = değere göre ilk N şirket, BACKFILL_SINCE = YYYY-MM-DD (bu günden itibaren).
-// Sınırlı çalışma "bitti" sayılmaz; sonraki çalışma kaldığı yerden sürer.
+// BACKFILL_REALMS = '0' gibi: yalnız o realm(lar). Sınırlı çalışma "bitti" sayılmaz; sonraki çalışma kaldığı yerden sürer.
 // Hız: ≈2-3 istek/sn (borsa botu duraklatıldığı sürece); 429 gelirse kendiliğinden yavaşlar. Borsa açıkken aynı sınırı paylaşır, o zaman BORSA_DURAKLAT'ı '0' yapınca hız 429'larla kendiliğinden düşer.
 
 import { CONFIG, createPacer, fetchPaced, parseJSON, runIfMain } from './common.mjs';
@@ -109,7 +109,9 @@ export async function main() {
   const db = new Firestore(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   const deadline = t0 + BUDGET_MS;
   const lines = [];
-  for (const r of CONFIG.realms) {
+  // BACKFILL_REALMS = '0' ya da '0,1' (boş = hepsi): elle çalıştırmada hangi realmların doldurulacağı; sıra her zaman 0 sonra 1
+  const istenen = String(process.env.BACKFILL_REALMS || '').split(',').map((x) => x.trim()).filter(Boolean).map(Number);
+  for (const r of CONFIG.realms.filter((x) => !istenen.length || istenen.includes(x))) {
     if (Date.now() >= deadline) { lines.push(`r${r}: süre doldu, sonraki çalışmada`); continue; }
     try { await backfillRealm(db, r, deadline, lines); } catch (e) { lines.push(`r${r}: HATA ${e?.message || e}`); }
   }
