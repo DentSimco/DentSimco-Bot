@@ -18,6 +18,8 @@ const CHECKPOINT = 500;          // şirket
 // Borsa botu duraklatıldığında (borsa.yml BORSA_DURAKLAT) Simcotools sınırı (≈2 istek/sn) bu işe kalır: 0,5 sn aralıkla başlar,
 // sorunsuz giderse 0,35 sn'ye kadar hızlanır; 429 gelince herkes birlikte bekler ve aralık büyür (common.mjs createPacer).
 const PACE = { startIntervalMs: 500, minIntervalMs: 350, maxIntervalMs: 6000, retries: 3 };
+// BACKFILL_RATE (istek/sn, elle çalıştırma girdisi) verilirse aralık sabit 1000/hız ms olur (en çok o hız); 429 gelince yine yavaşlar ve toparlanır.
+export const paceOf = (hiz) => (Number(hiz) > 0 ? { startIntervalMs: Math.round(1000 / Number(hiz)), minIntervalMs: Math.round(1000 / Number(hiz)), maxIntervalMs: 6000, retries: 3 } : PACE);
 const PARALEL = 16; // aynı anda bekleyen istek; hızı pacer sınırlar, yanıt gecikmesi hızı düşürmesin diye
 const progressPath = (r) => `meta/rhistbf_p_r${r}`;
 
@@ -64,7 +66,8 @@ export async function backfillRealm(db, r, deadline, lines) {
   const old = await db.getMany(paths);
   const maps = paths.map((p) => parseJSON(old.get(p)?.data) || {});
   const dirty = new Set();
-  const pacer = createPacer({ deadline, ...PACE });
+  const pace = paceOf(process.env.BACKFILL_RATE);
+  const pacer = createPacer({ deadline, ...pace });
   const sinir = Math.min(list.ids.length, Number(process.env.BACKFILL_LIMIT) > 0 ? Math.floor(Number(process.env.BACKFILL_LIMIT)) : list.ids.length);
   const since = dayNum(process.env.BACKFILL_SINCE) || 0;
   let i = Math.min(prog.done || 0, sinir);
@@ -79,7 +82,7 @@ export async function backfillRealm(db, r, deadline, lines) {
   };
 
   const bir = async (id) => {
-    const json = await fetchPaced(`${API}/realms/${r}/companies/${id}/history?page=1&page_size=${HIST_DAYS + 1}`, pacer, { deadline, retries: PACE.retries });
+    const json = await fetchPaced(`${API}/realms/${r}/companies/${id}/history?page=1&page_size=${HIST_DAYS + 1}`, pacer, { deadline, retries: pace.retries });
     const days = apiDays(json, refDay, since);
     if (days.length) {
       const c = histChunkOf(id);
@@ -101,7 +104,7 @@ export async function backfillRealm(db, r, deadline, lines) {
   }
   const finished = i >= list.ids.length;
   await save(finished);
-  lines.push(`r${r}: ${i}/${list.ids.length} şirket${finished ? ' (BİTTİ)' : sinir < list.ids.length && i >= sinir ? ` (sınır ${sinir})` : ''}${since ? `, ${since} sonrası` : ''}, hata ${failed}, 429=${pacer.stat.throttled}`);
+  lines.push(`r${r}: ${i}/${list.ids.length} şirket${finished ? ' (BİTTİ)' : sinir < list.ids.length && i >= sinir ? ` (sınır ${sinir})` : ''}${since ? `, ${since} sonrası` : ''}, hata ${failed}, 429=${pacer.stat.throttled}, ${((Date.now() - t0) / 60000).toFixed(1)} dk, ${(pacer.stat.ok / Math.max(1, (Date.now() - t0) / 1000)).toFixed(2)} istek/sn`);
 }
 
 export async function main() {

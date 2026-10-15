@@ -1,7 +1,7 @@
 // node bot/history_test.mjs — şirket geçmişi (son 30 gün) mantığının sınaması (ağ ve Firestore kullanmaz)
 import assert from 'node:assert/strict';
 import { dayNum, addDays, cutoffOf, toHistDay, mergeDays, mergeChunk, distinctDays, histChunkOf, histPath, histBfPath, updateHistory, HIST_DAYS, HIST_CHUNKS } from './history.mjs';
-import { apiDay, apiDays, backfillRealm } from './history_backfill.mjs';
+import { apiDay, apiDays, backfillRealm, paceOf } from './history_backfill.mjs';
 
 // satır: [id, ad, sıra, sıraFarkı, eva, değer, değerFarkı, yüzde, bina, patent, işçi, bono, ayrıntıVar]
 const row = (id, rank, extra = {}) => [id, `Ş${id}`, rank, 0, 5, 1000 + id, 0, 0, 10, 20, 300, 40, 1].map((v, i) => extra[i] ?? v);
@@ -118,4 +118,7 @@ assert.equal(r.days, 30, '31. gün eklenince en eski gün düşer, 30 gün kalı
     assert.ok(satirlar.at(-1).includes('BİTTİ'));
   } finally { globalThis.fetch = eskiFetch; delete process.env.BACKFILL_SINCE; delete process.env.BACKFILL_LIMIT; }
 }
+assert.equal(paceOf('5').startIntervalMs, 200, 'hız 5 → 200 ms aralık');
+assert.equal(paceOf('5').minIntervalMs, 200);
+assert.equal(paceOf('').startIntervalMs, 500, 'hız verilmezse otomatik (0,5 sn → 0,35 sn)');
 console.log('history_test: tamam');
