@@ -21,6 +21,10 @@ on:
         description: 'Hangi realmlar (0 = R1, 1 = R2; 0,1 = ikisi sırayla; boş = şimdilik yalnız 0)'
         required: false
         default: ''
+      rate:
+        description: 'Saniyedeki istek sayısı (boş = otomatik, ≈2-3; örn. 5). 429 gelirse kendiliğinden yavaşlar'
+        required: false
+        default: ''
       since:
         description: 'Bu günden itibaren doldur (YYYY-MM-DD; boş = 2026-09-29)'
         required: false
@@ -50,6 +54,7 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_RATE: ${{ inputs.rate }}
           # Boş bırakılırsa (gece çalışması dahil) şimdilik yalnız R1 (0): R1 bitince '1' girilerek ya da bu varsayılan değiştirilerek R2'ye geçilir
           BACKFILL_REALMS: ${{ inputs.realms || '0' }}
           # Boş bırakılırsa (gece çalışması dahil) 29 Eylül'den itibaren doldurulur; son 30 günün dışına çıkmaz
