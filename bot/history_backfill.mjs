@@ -4,6 +4,8 @@
 // Sıra: şirketler değere göre (en değerli ilk). Her ~500 şirkette ve süre dolunca kaydeder; ilerleme meta/rhistbf_p_r{realm} içindedir,
 // sonraki çalışma kaldığı yerden devam eder. Bitince ya da günlük geçmiş 30 güne tamamlanınca (history.mjs belgeleri siler) kendiliğinden durur.
 // Yazdığı belgeler günlük geçmişten AYRIDIR (meta/rhistbf_r{realm}_{NNN}); böylece iki yazar birbirinin belgesini ezmez.
+// Elle çalıştırırken sınır verilebilir (iş akışı girdileri): BACKFILL_LIMIT = değere göre ilk N şirket, BACKFILL_SINCE = YYYY-MM-DD (bu günden itibaren).
+// Sınırlı çalışma "bitti" sayılmaz; sonraki çalışma kaldığı yerden sürer.
 // Hız: borsa botuyla aynı Simcotools sınırını paylaştığı için yavaştır (≈1 istek/sn); 429 gelirse kendiliğinden yavaşlar.
 
 import { CONFIG, createPacer, fetchPaced, parseJSON, runIfMain } from './common.mjs';
@@ -24,9 +26,9 @@ export function apiDay(h) {
   const n = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
   return [day, n(h.rank), n(h.evaRank), n(h.value), d ? n(h.buildingsValue) : null, d ? n(h.patentsValue) : null, d ? n(h.workers) : null, d ? n(h.bondsSold) : null, d ? 1 : 0];
 }
-// Yanıttaki son 30 gün (refDay dahil), artan tarihli
-export function apiDays(json, refDay) {
-  const cut = cutoffOf(refDay);
+// Yanıttaki son 30 gün (refDay dahil), artan tarihli. since (YYYYMMDD) verilirse o günden öncesi alınmaz.
+export function apiDays(json, refDay, since = 0) {
+  const cut = Math.max(cutoffOf(refDay), since || 0);
   const out = new Map();
   for (const h of json?.history || []) {
     const x = apiDay(h);
@@ -60,7 +62,9 @@ async function backfillRealm(db, r, deadline, lines) {
   const maps = paths.map((p) => parseJSON(old.get(p)?.data) || {});
   const dirty = new Set();
   const pacer = createPacer({ deadline, ...PACE });
-  let i = Math.min(prog.done || 0, list.ids.length);
+  const sinir = Math.min(list.ids.length, Number(process.env.BACKFILL_LIMIT) > 0 ? Math.floor(Number(process.env.BACKFILL_LIMIT)) : list.ids.length);
+  const since = dayNum(process.env.BACKFILL_SINCE) || 0;
+  let i = Math.min(prog.done || 0, sinir);
   let failed = prog.failed || 0;
   const t0 = Date.now();
 
@@ -71,11 +75,11 @@ async function backfillRealm(db, r, deadline, lines) {
     dirty.clear();
   };
 
-  for (; i < list.ids.length; i++) {
+  for (; i < sinir; i++) {
     const id = list.ids[i];
     try {
       const json = await fetchPaced(`${API}/realms/${r}/companies/${id}/history?page=1&page_size=${HIST_DAYS + 1}`, pacer, { deadline, retries: PACE.retries });
-      const days = apiDays(json, refDay);
+      const days = apiDays(json, refDay, since);
       if (days.length) {
         const c = histChunkOf(id);
         let list2 = maps[c][id] || [];
@@ -91,7 +95,7 @@ async function backfillRealm(db, r, deadline, lines) {
   }
   const finished = i >= list.ids.length;
   await save(finished);
-  lines.push(`r${r}: ${i}/${list.ids.length} şirket${finished ? ' (BİTTİ)' : ''}, hata ${failed}, 429=${pacer.stat.throttled}`);
+  lines.push(`r${r}: ${i}/${list.ids.length} şirket${finished ? ' (BİTTİ)' : sinir < list.ids.length && i >= sinir ? ` (sınır ${sinir})` : ''}${since ? `, ${since} sonrası` : ''}, hata ${failed}, 429=${pacer.stat.throttled}`);
 }
 
 export async function main() {
