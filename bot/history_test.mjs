@@ -1,7 +1,7 @@
 // node bot/history_test.mjs — şirket geçmişi (son 30 gün) mantığının sınaması (ağ ve Firestore kullanmaz)
 import assert from 'node:assert/strict';
-import { dayNum, addDays, cutoffOf, toHistDay, mergeDays, mergeChunk, distinctDays, histChunkOf, histPath, updateHistory, HIST_DAYS, HIST_CHUNKS } from './history.mjs';
-import { apiDay, apiDays } from './history_backfill.mjs';
+import { dayNum, addDays, cutoffOf, toHistDay, mergeDays, mergeChunk, distinctDays, histChunkOf, histPath, histBfPath, updateHistory, HIST_DAYS, HIST_CHUNKS } from './history.mjs';
+import { apiDay, apiDays, backfillRealm } from './history_backfill.mjs';
 
 // satır: [id, ad, sıra, sıraFarkı, eva, değer, değerFarkı, yüzde, bina, patent, işçi, bono, ayrıntıVar]
 const row = (id, rank, extra = {}) => [id, `Ş${id}`, rank, 0, 5, 1000 + id, 0, 0, 10, 20, 300, 40, 1].map((v, i) => extra[i] ?? v);
@@ -80,4 +80,42 @@ assert.equal(r.days, 30, '30 güne ulaştı');
 assert.equal(db.commits.at(-1).filter((w) => w.type === 'delete').length, HIST_CHUNKS, '30 güne ulaşınca geri doldurma belgeleri silinir');
 r = await updateHistory(db, 0, rows, iso(addDays(20261015, 30)), 99);
 assert.equal(r.days, 30, '31. gün eklenince en eski gün düşer, 30 gün kalır');
+
+// backfillRealm: sahte Firestore ve sahte Simcotools ile; paralel döngü tüm şirketleri bir kez işler, ilerleme kaydedilir, sınır ve devam çalışır
+{
+  const ids = Array.from({ length: 70 }, (_, i) => 1000 + i);
+  const rowsR = ids.map((id, i) => [id, `Ş${id}`, i + 1, 0, 5, 1, 0, 0, 1, 1, 1, 1, 1]);
+  const depo = new Map([
+    ['meta/ranking_r0', { data: JSON.stringify({ v: 1, t: 1, date: '2026-10-15T00:00:00Z', total: 70, chunks: 1, size: 2000 }) }],
+    ['meta/ranking_r0_c00', { data: JSON.stringify(rowsR) }],
+  ]);
+  const fdb = { async getMany(paths) { return new Map(paths.map((p) => [p, depo.get(p) ?? null])); }, async commit(w) { for (const x of w) { if (x.type === 'set') depo.set(x.path, x.data); else depo.delete(x.path); } } };
+  const istekler = [];
+  const eskiFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const id = Number(/companies\/(\d+)\/history/.exec(String(url))[1]);
+    istekler.push(id);
+    if (id === 1003) return { ok: false, status: 404, headers: new Map(), text: async () => '' };
+    const history = [20261015, 20261014, 20260929, 20260928].map((d) => ({ date: iso(d), rank: 1, evaRank: 2, value: 1000 + id, buildingsValue: 1, patentsValue: 1, workers: 1, bondsSold: 1, fetched: true }));
+    return { ok: true, status: 200, headers: new Map(), json: async () => ({ history }) };
+  };
+  process.env.BACKFILL_SINCE = '2026-09-29';
+  process.env.BACKFILL_LIMIT = '40';
+  try {
+    const satirlar = [];
+    await backfillRealm(fdb, 0, Date.now() + 60_000, satirlar);
+    assert.equal(new Set(istekler).size, 40, 'sınır: ilk 40 şirket, her biri bir kez');
+    const pr = JSON.parse(depo.get('meta/rhistbf_p_r0').data);
+    assert.deepEqual([pr.done, pr.finished, pr.failed], [40, false, 1], 'ilerleme 40, bitmedi, 1 hata (1003)');
+    const c = JSON.parse(depo.get(histBfPath(0, 1000 % HIST_CHUNKS)).data);
+    assert.deepEqual(c[1000].map((x) => x[0]), [20260929, 20261014, 20261015], '29 Eylül ve sonrası, artan');
+    assert.equal(c[1003], undefined, 'hatalı şirket yazılmadı');
+    delete process.env.BACKFILL_LIMIT;
+    istekler.length = 0;
+    await backfillRealm(fdb, 0, Date.now() + 60_000, satirlar);
+    assert.equal(istekler.length, 30, 'sonraki çalışma kaldığı yerden (40. şirketten) sürer');
+    assert.equal(JSON.parse(depo.get('meta/rhistbf_p_r0').data).finished, true);
+    assert.ok(satirlar.at(-1).includes('BİTTİ'));
+  } finally { globalThis.fetch = eskiFetch; delete process.env.BACKFILL_SINCE; delete process.env.BACKFILL_LIMIT; }
+}
 console.log('history_test: tamam');
