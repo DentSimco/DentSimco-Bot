@@ -1,0 +1,38 @@
+# DentSimco — Şirket geçmişi geri doldurma (ilk 30 gün; tek seferlik, kaldığı yerden devam eder)
+# Günlük geçmiş birikimi borsa.yml içindeki sıralama adımında yapılır (bot/history.mjs). Bu iş, Simcotools'un şirket geçmişi API'sinden
+# ilk 30 günü doldurur: şirket başına bir istek, değere göre en değerliden başlar, ≈1 istek/sn.
+# Her çalışma en çok 5 saat sürer ve ilerlemesini Firestore'a yazar; sonraki çalışma kaldığı yerden sürer. Bitince ya da günlük
+# geçmiş 30 güne tamamlanınca hiçbir şey yapmadan biter. Elle (Actions > Run workflow) ya da her gece kendiliğinden çalışır.
+# Borsa kuyruğundan (dentsimco-borsa) AYRIDIR: saatler süren bu iş borsa turlarını bekletmesin diye. Aynı Simcotools sınırını paylaştıkları
+# için bot yavaş çalışır ve 429 alınca kendiliğinden yavaşlar.
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
+name: DentSimco Siralama Gecmis
+
+on:
+  schedule:
+    - cron: '40 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-gecmis
+  cancel-in-progress: false
+
+jobs:
+  gecmis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - name: Sınama (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+        continue-on-error: true
+        run: node bot/history_test.mjs
+      - name: Geçmişi geri doldur
+        run: node bot/history_backfill.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
