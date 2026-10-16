@@ -4,12 +4,21 @@ name: Ekonomi Evresi
 
 on:
   schedule:
-    # Türkiye saati 18:05, 18:20, 18:35 ve 19:05 (UTC 15:05, 15:20, 15:35, 16:05), sadece cuma
-    - cron: "5 15 * * 5"
-    - cron: "20 15 * * 5"
-    - cron: "35 15 * * 5"
-    - cron: "5 16 * * 5"
+    # Evre cuma UTC 15:00'te (TR 18:00) değişir; Simcotools yeni evreyi geç yayınlayabilir.
+    # Bu yüzden cuma UTC 15:05-18:55 arası her 10 dakikada bir bakılır (yeni evre gelince yazılır, gelene dek "zaten güncel/yayınlanmamış" der).
+    - cron: "5,15,25,35,45,55 15-18 * * 5"
   workflow_dispatch:
+    inputs:
+      r0:
+        description: "Realm 0 evresini elle yaz (Simcotools gecikirse). Boş = Simcotools'tan çek"
+        type: choice
+        options: ["", recession, normal, boom]
+        default: ""
+      r1:
+        description: "Realm 1 evresini elle yaz (Simcotools gecikirse). Boş = Simcotools'tan çek"
+        type: choice
+        options: ["", recession, normal, boom]
+        default: ""
 
 permissions:
   contents: read
@@ -35,4 +44,6 @@ jobs:
       - name: Evreyi çek ve kaydet
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          PHASE_OVERRIDE_R0: ${{ inputs.r0 }}
+          PHASE_OVERRIDE_R1: ${{ inputs.r1 }}
         run: node scripts/fetchPhase.mjs

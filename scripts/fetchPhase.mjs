@@ -48,8 +48,32 @@ const now = Date.now();
 const update = {};
 let realm0Failed = false;
 
+// Elle girilen evre (workflow_dispatch). Simcotools gecikince oyundaki evre buradan yazılır:
+// başlangıç = en son cuma UTC 15:00, bitiş = +7 gün. Simcotools yeni evreyi yayınlayınca (farklı start/end) otomatik üzerine yazar.
+function lastFriday15(ms) {
+  const d = new Date(ms);
+  d.setUTCHours(15, 0, 0, 0);
+  while (d.getUTCDay() !== 5 || d.getTime() > ms) d.setUTCDate(d.getUTCDate() - 1);
+  return d.getTime();
+}
+
 for (const realm of REALMS) {
   const key = `r${realm}`;
+  const forced = (process.env[`PHASE_OVERRIDE_R${realm}`] || "").trim();
+  if (forced) {
+    if (!LABELS[forced]) { console.error(`Realm ${realm}: geçersiz elle evre: ${forced}`); continue; }
+    const start = lastFriday15(now);
+    update[key] = {
+      phase: forced,
+      label: LABELS[forced],
+      start: new Date(start).toISOString().replace(".000Z", "Z"),
+      end: new Date(start + 7 * 86400000).toISOString().replace(".000Z", "Z"),
+      fetchedAt: new Date().toISOString(),
+      manual: true,
+    };
+    console.log(`Realm ${realm}: ELLE yazıldı → ${LABELS[forced]} (${update[key].start} → ${update[key].end})`);
+    continue;
+  }
   try {
     const data = await getJson(API(realm));
     if (!Array.isArray(data?.ranges) || data.ranges.length === 0) {
