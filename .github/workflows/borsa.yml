@@ -36,11 +36,13 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: bot
-      - name: Sınama (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
         if: env.BORSA_DURAKLAT != '1'
+        id: market-test
         continue-on-error: true
         run: node bot/market_test.mjs
-      - name: Güvenlik sınaması, JWT yalnız Google'a gider (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+      - name: Güvenlik sınaması, JWT yalnız Google'a gider (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        id: firestore-test
         continue-on-error: true
         run: node bot/firestore_test.mjs
       - name: Borsa verisini topla
@@ -55,3 +57,8 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           RANKING_IF_STALE: '1'
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && (steps.market-test.outcome == 'failure' || steps.firestore-test.outcome == 'failure') }}
+        run: |
+          echo "::error::Sınama başarısız (market-test, firestore-test); ayrıntı ilgili adımda."
+          exit 1

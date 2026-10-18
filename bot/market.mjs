@@ -19,9 +19,9 @@
 //   live/r{realm}                  data = JSON {v, t, items: {id: [zaman, {q: [fiyat, arz, satış, tutar, sonİşlemZamanı]}]}}  HER turda
 //   intraday/r{realm}_{gün}_s{NN}  t{SSDD} = JSON {id: {q: [fiyat, arz, satış, tutar]}}                                   10 dakikada bir
 //   daily/r{realm}_{id}_{yıl}      d{AAGG} = JSON {q: [açılış, yüksek, düşük, kapanış, ortArz, satış, tutar]}
-//   meta/mstate_r{realm}           data = JSON {v, t, w, q: {id: {q: [mumDk, mumTahmini, biriken satış, biriken tutar]}}}  (yalnız bot okur)
+//   botstate/mstate_r{realm}       data = JSON {v, t, w, q: {id: {q: [mumDk, mumTahmini, biriken satış, biriken tutar]}}}  (yalnız bot okur)
 // Gün içi nokta 5 değil 10 dakikada bir yazılır: Firestore belgesi 1 MiB'ı geçmesin (parça başına ~10 ürün × 13 kalite).
-// Aradaki turun satışları bir sonraki noktaya eklenir (meta/mstate içinde birikir).
+// Aradaki turun satışları bir sonraki noktaya eklenir (botstate/mstate içinde birikir).
 
 import {
   CONFIG, PATHS, fetchPaced, fetchJson, createPacer, runPool, utcDay, hhmm, addDays, shardOf, range, round, parseJSON, runIfMain,
@@ -96,7 +96,7 @@ export function parseSummaries(json, at, prev = null) {
 }
 
 // Tur satışlarını biriktirir. write=true ise gün içi noktaya birikmiş toplam yazılır ve birikim sıfırlanır.
-//  prevQ  = meta/mstate'teki bu ürünün önceki durumu {kalite: [mumDk, mumTahmini, accS, accV]}
+//  prevQ  = botstate/mstate'teki bu ürünün önceki durumu {kalite: [mumDk, mumTahmini, accS, accV]}
 //  Dönüş: intraday (10 dk noktası), live (canlı belge), state (yeni durum)
 export function accumulate(prevQ, quals, write) {
   const intraday = {};
@@ -143,10 +143,11 @@ export async function main() {
   const yesterday = addDays(day, -1);
   const field = `t${hhmm(t0)}`;
   const deadline = t0 + FETCH_BUDGET_MS;
-  const stateKey = (r) => PATHS.meta(`mstate_r${r}`);
+  const stateKey = (r) => PATHS.botState(`mstate_r${r}`);
+  const oldStateKey = (r) => PATHS.meta(`mstate_r${r}`); // eski yer: yeni belge yoksa bir kez okunur (site okuyabildiği için taşındı)
 
   // 1) Önceki durumu tek istekte oku
-  const docs = await db.getMany([PATHS.meta('tradable'), PATHS.meta('rollup'), ...realms.map(PATHS.live), ...realms.map(stateKey)]);
+  const docs = await db.getMany([PATHS.meta('tradable'), PATHS.meta('rollup'), ...realms.map(PATHS.live), ...realms.map(stateKey), ...realms.map(oldStateKey)]);
   const marker = docs.get(PATHS.meta('rollup'));
 
   // 2) Hangi ürünler çekilecek
@@ -160,7 +161,7 @@ export async function main() {
   const prevState = {};
   for (const r of realms) {
     prevLive[r] = parseJSON(docs.get(PATHS.live(r))?.data)?.items || {};
-    prevState[r] = parseJSON(docs.get(stateKey(r))?.data) || {};
+    prevState[r] = parseJSON((docs.get(stateKey(r)) || docs.get(oldStateKey(r)))?.data) || {};
   }
   // Gün içi nokta bu turda yazılsın mı: son yazımdan en az 9 dakika geçtiyse (her ikinci tur)
   const writeNow = Object.fromEntries(realms.map((r) => [r, !(t0 - (Number(prevState[r].w) || 0) < WRITE_GAP_MS)]));
