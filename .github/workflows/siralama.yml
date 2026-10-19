@@ -24,10 +24,16 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: bot
-      - name: Sınama (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        id: ranking-test
         continue-on-error: true
         run: node bot/ranking_test.mjs
       - name: Sıralamayı topla
         run: node bot/ranking.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && (steps.ranking-test.outcome == 'failure') }}
+        run: |
+          echo "::error::Sınama başarısız (ranking-test); ayrıntı ilgili adımda."
+          exit 1

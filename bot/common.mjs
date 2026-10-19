@@ -8,7 +8,7 @@
 //   daily/r{realm}_{id}_{yıl}      d{AAGG} = JSON {q: [açılış,yüksek,düşük,kapanış,ortArz,satış,değer]}
 //   meta/products_r{realm}, meta/tradable, meta/buildings, meta/core,
 //   meta/modifiers_r{realm}, meta/retail_r{realm}, meta/status, meta/rollup
-//   meta/mstate_r{realm}           yalnız borsa botu okur (turlar arası biriken satış durumu); dashboard okumaz
+//   botstate/mstate_r{realm}       yalnız borsa botu okur (turlar arası biriken satış durumu); dashboard okumaz (Firestore kuralları bu koleksiyonu kapalı tutar)
 //
 //   p = en düşük satış fiyatı, a = satıştaki toplam adet (arz),
 //   s = tahmini satılan adet (önceki ölçümden beri), v = tahmini satış tutarı
@@ -59,6 +59,7 @@ export const PATHS = {
   intraday: (r, day, s) => `intraday/r${r}_${day}_s${pad2(s)}`,
   daily: (r, id, year) => `daily/r${r}_${id}_${year}`,
   meta: (name) => `meta/${name}`,
+  botState: (name) => `botstate/${name}`,
 };
 
 // Oyun API'sinden JSON çeker. 429 ve 5xx hatalarında bekleyip tekrar dener.

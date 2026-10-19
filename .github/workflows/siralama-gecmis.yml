@@ -46,7 +46,8 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: bot
-      - name: Sınama (başarısız olursa uyarı verir, veri toplamayı durdurmaz)
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        id: history-test
         continue-on-error: true
         run: node bot/history_test.mjs
       - name: Geçmişi geri doldur
@@ -59,3 +60,8 @@ jobs:
           BACKFILL_REALMS: ${{ inputs.realms || '0' }}
           # Boş bırakılırsa (gece çalışması dahil) 29 Eylül'den itibaren doldurulur; son 30 günün dışına çıkmaz
           BACKFILL_SINCE: ${{ inputs.since || '2026-09-29' }}
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && (steps.history-test.outcome == 'failure') }}
+        run: |
+          echo "::error::Sınama başarısız (history-test); ayrıntı ilgili adımda."
+          exit 1

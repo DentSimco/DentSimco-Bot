@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# Sim Companies'e istek atan işlerle (restoran.yml) aynı kuyruk: API kuralı 5 dakikada 1 istek.
+concurrency:
+  group: dentsimco-simcompanies
+  cancel-in-progress: false
+
 jobs:
   sabit-veri:
     runs-on: ubuntu-latest

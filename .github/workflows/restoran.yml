@@ -1,0 +1,38 @@
+# DentSimco — Restoran tüketimi (günlük)
+# Sim Companies API'si "5 dakikada 1 istek" kuralı koydu. Bu iş realm başına TEK istek atar (resources-retail-info: tüm ürünlerin
+# günlük restoran satışı), iki istek arasında 5 dakikadan fazla bekler; bir çalışma yaklaşık 6 dakika sürer.
+# Gün verisi UTC günü bittikten sonra yayımlanıyor. Yayım saatini ölçmek için ilk günlerde 00:20 ve 01:20 UTC'de de çalışır
+# (Firestore kaydındaki "ilk görülme" alanı bunu gösterir); ölçüm bitince bu iki satırı silin, 02:30 yeter.
+# Sim Companies'e istek atan diğer iş (sabit-veri.yml) ile AYNI kuyruğu paylaşır ki iki iş birden istek atmasın.
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
+name: DentSimco Restoran
+
+on:
+  schedule:
+    - cron: '20 0 * * *'
+    - cron: '20 1 * * *'
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-simcompanies
+  cancel-in-progress: false
+
+jobs:
+  restoran:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - name: Sınama
+        run: node bot/restaurant_test.mjs
+      - name: Restoran tüketimini topla
+        run: node bot/restaurant.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
