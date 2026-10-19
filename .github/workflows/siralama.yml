@@ -1,18 +1,22 @@
-# DentSimco — Şirket sıralaması botu (YALNIZ ELLE)
-# Günlük çalışma borsa.yml içindedir (borsa turundan sonra, aynı işte) ki Simcotools'a iki iş birden istek atmasın.
-# Bu iş elle (Actions > Run workflow) çalıştırılır ve borsa ile AYNI kuyruğu (concurrency) paylaşır: borsa turu sürerken sıra bekler.
-# Not: borsa ve bu iş aynı kuyrukta olduğundan bekleyen en yeni çalışma öncekini iptal eder; elle çalıştırınca borsa turu atlanabilir.
+# DentSimco — Şirket sıralaması botu (günde bir kez, borsadan AYRI)
+# Her gün bir kez çalışır (04:20 UTC = 07:20 Türkiye saati): sıralama 00:00 UTC'de yenilenir, ayrıntılar (bina, patent, işçi, tahvil)
+# sabaha doğru hazır olur. Haber masası (haber.yml, 05:00 UTC) bu veriyi okuduğu için ondan ÖNCE çalışır. Sıralama isteği günde yalnız bu
+# çalışmada gelir; canlı borsa turlarını (borsa.yml) hiç yavaşlatmaz.
+# Borsa kuyruğundan (dentsimco-borsa) AYRI kendi kuyruğu vardır: ikisi aynı anda çalışabilir. Simcotools'un sınırı ortaksa 429 gelince
+# her iki bot da kendiliğinden yavaşlar (Retry-After'a uyar). Elle de çalıştırılabilir (Actions > Run workflow).
 # Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
 name: DentSimco Siralama
 
 on:
+  schedule:
+    - cron: '20 4 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: dentsimco-borsa
+  group: dentsimco-siralama
   cancel-in-progress: false
 
 jobs:

@@ -3,7 +3,7 @@
 //
 // Simcotools: GET /v1/realms/{realm}/ranking?page=N&page_size=100 (en çok 100). Realm başına ~26 bin şirket = ~260 istek.
 // Sıralamanın ayrıntıları (bina, patent, işçi, tahvil) sayfa sayfa gün içinde dolar: sondaki sayfalar sabaha doğru hazır olur
-// (siralama.yml bu yüzden öğleye yakın çalışır). Hazır olmayan şirkette `fetched` false gelir; alanlar 0 yazılır.
+// (siralama.yml bu yüzden günde bir kez 04:20 UTC'de, borsadan ayrı çalışır). Hazır olmayan şirkette `fetched` false gelir; alanlar 0 yazılır.
 //
 // Firestore'a yazılan biçim (dashboard sirketler.js okur):
 //   meta/ranking_r{realm}          data = JSON {v, t, date, total, chunks, size}

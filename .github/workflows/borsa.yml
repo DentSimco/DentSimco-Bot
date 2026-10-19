@@ -5,11 +5,9 @@
 # Repo herkese açık olduğu için GitHub Actions dakikası sınırsız.
 # Not: GitHub zamanlanmış çalışmaları yoğun saatlerde birkaç dakika geciktirebilir. Çalışmalar üst üste binmez:
 # bir tur sürerken gelen yeni tur bekler (concurrency), çalışan tur iptal edilmez.
-# Şirket sıralaması (bot/ranking.mjs) her turda borsadan SONRA, bu işin içinde yoklanır: Simcotools'ta yeni tarihli sıralama
-# (00:00 UTC) çıkınca ya da aynı tarihin ayrıntıları eksik kalınca (3 saatte bir) yeniden çekilir; diğer turlarda tek istek atar.
-# Böylece Simcotools'a hiçbir zaman iki iş birden istek atmaz (saniyede 2 sınırı). O gün borsa turu ~5 dakika uzar.
+# Şirket sıralaması bu işte DEĞİL: kendi iş akışında (siralama.yml, günde bir kez, ayrı kuyruk) çalışır; borsa turu hiç uzamaz.
 # DURAKLATMA: BORSA_DURAKLAT '1' iken (şu an '0': borsa açık) canlı borsa verisi toplanmaz (aşağıdaki env); Simcotools'un isteği şirket geçmişi geri doldurmasına
-# kalır. Şirket sıralaması adımı (yeni gün ve günlük geçmiş birikimi) çalışmaya devam eder. Borsayı açmak için '0' yapın.
+# kalır. Borsayı açmak için '0' yapın.
 # Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
 name: DentSimco Borsa
 
@@ -59,13 +57,6 @@ jobs:
         env:
           ANLIK_BORSA: ${{ env.ANLIK_BORSA }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-      - name: Şirket sıralaması (yeni tarih çıkınca, borsadan sonra; hata verirse borsa turu başarısız sayılmaz)
-        if: hashFiles('bot/ranking.mjs') != ''
-        continue-on-error: true
-        run: node bot/ranking.mjs
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          RANKING_IF_STALE: '1'
       - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
         if: ${{ always() && (steps.market-test.outcome == 'failure' || steps.exchange-test.outcome == 'failure' || steps.firestore-test.outcome == 'failure') }}
         run: |
