@@ -67,7 +67,7 @@ export const PATHS = {
 };
 
 // Oyun API'sinden JSON çeker. 429 ve 5xx hatalarında bekleyip tekrar dener.
-export async function fetchJson(url, { deadline = Infinity, retries = 3, onThrottle } = {}) {
+export async function fetchJson(url, { deadline = Infinity, retries = 3, onThrottle, headers } = {}) {
   let lastError = new Error('bilinmeyen hata');
   for (let attempt = 0; attempt <= retries; attempt++) {
     const remaining = deadline - Date.now();

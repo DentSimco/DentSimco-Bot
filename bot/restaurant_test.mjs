@@ -1,5 +1,6 @@
 // DentSimco — restoran botu sınaması. Çalıştırma: node bot/restaurant_test.mjs (ağa çıkılmaz)
 import { extractRestaurant, mergeRestaurant, GAP_MS } from './restaurant.mjs';
+import { fetchJson } from './common.mjs';
 
 const results = [];
 function test(name, fn) {
@@ -51,6 +52,21 @@ test('birleştirme: 400 günden eski satırlar atılır', () => {
   eq(Object.keys(b[124]), ['2026-10-01']);
 });
 test('istekler arası bekleme 5 dakikadan uzun', () => ok(GAP_MS > 5 * 60_000));
+
+// fetchJson'ın başlık parametresi: tanımsız `headers` hatası tüm Sim Companies isteklerini düşürmüştü
+const asyncTests = [];
+function testAsync(name, fn) { asyncTests.push(fn().then(() => results.push({ name, ok: true }), (e) => results.push({ name, ok: false, error: e.message }))); }
+testAsync('fetchJson: başlıksız ve başlıklı çağrı çalışır', async () => {
+  const eskiFetch = globalThis.fetch;
+  const gelen = [];
+  globalThis.fetch = async (url, opts) => { gelen.push(opts.headers); return { ok: true, status: 200, headers: new Map(), json: async () => ({ ok: 1 }) }; };
+  try {
+    eq(await fetchJson('https://ornek.test/a', { retries: 0 }), { ok: 1 });
+    eq(await fetchJson('https://ornek.test/b', { retries: 0, headers: { 'X-Deneme': '1' } }), { ok: 1 });
+    ok(gelen[1]['X-Deneme'] === '1', 'ek başlık isteğe eklenmeli');
+  } finally { globalThis.fetch = eskiFetch; }
+});
+await Promise.all(asyncTests);
 
 const failed = results.filter((r) => !r.ok);
 for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${r.name}${r.ok ? '' : ` — ${r.error}`}`);
