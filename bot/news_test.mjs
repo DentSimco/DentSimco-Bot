@@ -28,7 +28,7 @@ assert.equal(d.piyasa.gunlukYukselenler[0].id, 12);
 // Modelin gördüğü alanlar açık adlı; fiyat ile hacim ayrı
 const row = d.piyasa.gunlukYukselenler[0];
 assert.equal(row.kalite, 'Q1');
-assert.ok('bugunFiyatDegisimiYuzde' in row && 'dunkuIslemHacmiDolar' in row && 'dunkuSatilanAdet' in row);
+assert.ok('bugunFiyatDegisimiYuzde' in row && 'dunkuIslemHacmiDolar' in row && 'dunkuSatilanLot' in row);
 assert.ok(!('d1' in row) && !('hacimDun' in row));
 for (const k of Object.keys(row)) if (!['id', 'urun'].includes(k)) assert.ok(d.alanlar[k], `alan açıklaması eksik: ${k}`);
 assert.equal(d.piyasa.gunlukDusenler[0].id, 1);

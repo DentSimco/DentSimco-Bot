@@ -65,7 +65,7 @@ const short = (p) => ({
   id: p.id, urun: p.ad, kalite: `Q${p.q}`,
   canliFiyat: p.fiyat, dunkuKapanis: p.dun,
   bugunFiyatDegisimiYuzde: p.d1, haftalikFiyatDegisimiYuzde: p.d7, yirmiBirGunlukFiyatDegisimiYuzde: p.d21,
-  dunkuIslemHacmiDolar: p.hacimDun, dunkuSatilanAdet: p.adetDun, haftalikOrtalamaGunlukIslemHacmiDolar: p.hacim7,
+  dunkuIslemHacmiDolar: p.hacimDun, dunkuSatilanLot: p.adetDun, haftalikOrtalamaGunlukIslemHacmiDolar: p.hacim7,
 });
 
 export const ALANLAR = {
@@ -75,7 +75,7 @@ export const ALANLAR = {
   haftalikFiyatDegisimiYuzde: 'Dünkü kapanış ile 7 gün önceki kapanış arasındaki FİYAT değişimi (%). "Son bir haftada" diye yazılır.',
   yirmiBirGunlukFiyatDegisimiYuzde: 'Grafiğin başından (21 gün önce) bugüne FİYAT değişimi (%). Haberin yanındaki grafik bu dönemi gösterir.',
   dunkuIslemHacmiDolar: 'Dün o kalitede el değiştiren malın toplam DOLAR tutarı (işlem hacmi; fiyat DEĞİL).',
-  dunkuSatilanAdet: 'Dün o kalitede satılan ADET (işlem hacmi; fiyat DEĞİL).',
+  dunkuSatilanLot: 'Dün o kalitede işlem gören LOT sayısı (işlem miktarı; fiyat DEĞİL).',
   haftalikOrtalamaGunlukIslemHacmiDolar: 'Son 7 günün ortalama günlük işlem hacmi ($).',
   kalite: 'Kalite seviyesi; metinde ürün adıyla birlikte yazılır (ör. "Çelik (Q0)").',
   degerSirasi: 'Şirket değerine göre sıra (1 = en değerli şirket).',
@@ -173,7 +173,7 @@ Kurallar:
 - Her alanın anlamı "alanlar" içinde yazılı; ona göre kullan.
 
 Netlik kuralları (en önemlileri; okur kafası karışmadan anlamalı):
-- FİYAT ile İŞLEM HACMİNİ asla karıştırma. "Yükseldi / geriledi / düştü" yalnız fiyat için kullanılır ve cümlede "fiyatı" kelimesi geçer ("Çelik (Q0) fiyatı bugün %3,2 geriledi"). Hacimden söz ederken açıkça "işlem hacmi" de ve birimini yaz ("dün 825 milyon dolarlık işlem hacmi", "dün 12.400 adet satıldı"). Hacim tek başına "825 milyon" gibi birimsiz yazılmaz.
+- FİYAT ile İŞLEM HACMİNİ asla karıştırma. "Yükseldi / geriledi / düştü" yalnız fiyat için kullanılır ve cümlede "fiyatı" kelimesi geçer ("Çelik (Q0) fiyatı bugün %3,2 geriledi"). Hacimden söz ederken açıkça "işlem hacmi" de ve birimini yaz ("dün 825 milyon dolarlık işlem hacmi", "dün 12.400 lot işlem gördü"). Hacim tek başına "825 milyon" gibi birimsiz yazılmaz.
 - Her yüzdenin DÖNEMİNİ yaz: "bugün (dünkü kapanışa göre)", "son bir haftada", "son 21 günde". Dönemi yazılmamış yüzde kullanma.
 - Yön tutarlı olmalı: fiyat bir dönemde düşmüşse o dönem için "yükseldi" yazma. Kısa ve uzun dönem ters yöndeyse ikisini de dönemiyle yaz ("bugün %1,6 yükseldi; son 21 günde ise %4 geride").
 - Ürün adını her haberde ilk geçtiği yerde kalitesiyle yaz: "İnşaat gereci (Q0)". Başlıkta da kalite yer alsın.
