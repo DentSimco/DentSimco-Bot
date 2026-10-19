@@ -1,5 +1,6 @@
 # DentSimco — Canlı borsa botu
-# 5 dakikada bir başlar (UTC; Türkiye = UTC+3). Veri kaynağı: Simcotools API (saniyede en çok 2 istek).
+# 5 dakikada bir başlar (UTC; Türkiye = UTC+3). Veri kaynakları: Simcotools API (son işlem, mumlar; saniyede en çok 2 istek) ve
+# Sim Companies oyun API'si (anlık borsa fiyatı ve satış arzı: /api/v3/market/all/{realm}/{ürün}/, saniyede en çok 2 istek, ayrı sunucu).
 # İki realm (0 ve 1) için yaklaşık 290 istek, 2,5-3 dakikada biter.
 # Repo herkese açık olduğu için GitHub Actions dakikası sınırsız.
 # Not: GitHub zamanlanmış çalışmaları yoğun saatlerde birkaç dakika geciktirebilir. Çalışmalar üst üste binmez:
@@ -22,6 +23,8 @@ permissions:
 
 env:
   BORSA_DURAKLAT: '0'
+  # Anlık borsa (Sim Companies market/all, saniyede 2 istek, her turda ~240 istek). Acil kapatma: '0' yapın; SimcoTools verisi toplanmaya devam eder.
+  ANLIK_BORSA: '1'
 
 concurrency:
   group: dentsimco-borsa
@@ -41,6 +44,11 @@ jobs:
         id: market-test
         continue-on-error: true
         run: node bot/market_test.mjs
+      - name: Anlık borsa sınaması (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        if: env.BORSA_DURAKLAT != '1' && hashFiles('bot/exchange_test.mjs') != ''
+        id: exchange-test
+        continue-on-error: true
+        run: node bot/exchange_test.mjs
       - name: Güvenlik sınaması, JWT yalnız Google'a gider (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
         id: firestore-test
         continue-on-error: true
@@ -49,6 +57,7 @@ jobs:
         if: env.BORSA_DURAKLAT != '1'
         run: node bot/market.mjs
         env:
+          ANLIK_BORSA: ${{ env.ANLIK_BORSA }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
       - name: Şirket sıralaması (yeni tarih çıkınca, borsadan sonra; hata verirse borsa turu başarısız sayılmaz)
         if: hashFiles('bot/ranking.mjs') != ''
@@ -58,7 +67,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           RANKING_IF_STALE: '1'
       - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
-        if: ${{ always() && (steps.market-test.outcome == 'failure' || steps.firestore-test.outcome == 'failure') }}
+        if: ${{ always() && (steps.market-test.outcome == 'failure' || steps.exchange-test.outcome == 'failure' || steps.firestore-test.outcome == 'failure') }}
         run: |
-          echo "::error::Sınama başarısız (market-test, firestore-test); ayrıntı ilgili adımda."
+          echo "::error::Sınama başarısız (market-test, exchange-test, firestore-test); ayrıntı ilgili adımda."
           exit 1
