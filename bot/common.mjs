@@ -32,7 +32,7 @@ export const CONFIG = {
 
 export const HEADERS = {
   Accept: 'application/json',
-  'User-Agent': 'Mozilla/5.0 (compatible; DentSimco-Bot/2.1; +https://dentsimco-e1c85.web.app)',
+  'User-Agent': 'DentSimco-Bot/2.0',
 };
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
