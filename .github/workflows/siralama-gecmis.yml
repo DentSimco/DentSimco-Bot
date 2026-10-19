@@ -1,5 +1,5 @@
 # DentSimco — Şirket geçmişi geri doldurma (ilk 30 gün; tek seferlik, kaldığı yerden devam eder)
-# Günlük geçmiş birikimi borsa.yml içindeki sıralama adımında yapılır (bot/history.mjs). Bu iş, Simcotools'un şirket geçmişi API'sinden
+# Günlük geçmiş birikimi siralama.yml içinde, sıralamadan sonra yapılır (bot/history.mjs). Bu iş, Simcotools'un şirket geçmişi API'sinden
 # ilk 30 günü doldurur: şirket başına bir istek, değere göre en değerliden başlar, ≈1 istek/sn.
 # Her çalışma en çok 5 saat sürer ve ilerlemesini Firestore'a yazar; sonraki çalışma kaldığı yerden sürer. Bitince ya da günlük
 # geçmiş 30 güne tamamlanınca hiçbir şey yapmadan biter. Elle (Actions > Run workflow) ya da her gece kendiliğinden çalışır.
