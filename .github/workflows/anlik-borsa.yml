@@ -1,0 +1,51 @@
+# DentSimco — Anlık borsa botu (Sim Companies oyun API'si)
+# Her ürün için /api/v3/market/all/{realm}/{ürün}/ → anlık borsa fiyatı (kalite ve üstü en ucuz ilan) ve satış arzı.
+# SimcoTools borsa botundan (borsa.yml) AYRIDIR: kendi kuyruğu vardır, ikisi aynı anda çalışabilir, birinin hatası ötekini etkilemez.
+# Hız: sabit saniyede 2 istek. 429 gelirse 1 saniye beklenir, o ürün kuyruğun sonuna eklenir; tur tüm ürünler bitene kadar sürer
+# (en çok ~5,3 saat). Veri tur sürerken 2 dakikada bir yazılır. Yeni tur, öncekinin bitmesini bekler (concurrency).
+# DURDURMA: ANLIK_DURAKLAT '1' yapın.
+# Tanıma başlığı: SIMCO_HEADER_NAME / SIMCO_HEADER_VALUE secret'ları doluysa her isteğe eklenir (boşsa eklenmez).
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
+name: DentSimco Anlik Borsa
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ANLIK_DURAKLAT: '0'
+
+concurrency:
+  group: dentsimco-anlik
+  cancel-in-progress: false
+
+jobs:
+  anlik:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        if: env.ANLIK_DURAKLAT != '1'
+        id: anlik-test
+        continue-on-error: true
+        run: node bot/exchange_test.mjs
+      - name: Anlık borsa verisini topla
+        if: env.ANLIK_DURAKLAT != '1'
+        run: node bot/anlik.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SIMCO_HEADER_NAME: ${{ secrets.SIMCO_HEADER_NAME }}
+          SIMCO_HEADER_VALUE: ${{ secrets.SIMCO_HEADER_VALUE }}
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && steps.anlik-test.outcome == 'failure' }}
+        run: |
+          echo "::error::Sınama başarısız (anlik-test); ayrıntı ilgili adımda."
+          exit 1
