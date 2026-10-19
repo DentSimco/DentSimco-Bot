@@ -72,7 +72,7 @@ export async function fetchJson(url, { deadline = Infinity, retries = 3, onThrot
     const timer = setTimeout(() => controller.abort(), Math.min(15000, remaining));
     let res;
     try {
-      res = await fetch(url, { headers: HEADERS, signal: controller.signal });
+      res = await fetch(url, { headers: headers ? { ...HEADERS, ...headers } : HEADERS, signal: controller.signal });
     } catch (e) {
       clearTimeout(timer);
       if (Date.now() >= deadline - 50) throw Object.assign(new Error('süre doldu'), { deadline: true });
@@ -160,7 +160,7 @@ function parseRetryAfter(value) {
 }
 
 // fetchJson'ın hız kontrollü sürümü: 429 alınca kalan denemeyi harcamadan sırada bekler.
-export async function fetchPaced(url, pacer, { deadline = Infinity, retries = 6 } = {}) {
+export async function fetchPaced(url, pacer, { deadline = Infinity, retries = 6, headers } = {}) {
   let lastError = new Error('bilinmeyen hata');
   let hardFails = 0; // 429 dışı hatalar; 429'da süre bitene kadar beklenir
   for (;;) {
