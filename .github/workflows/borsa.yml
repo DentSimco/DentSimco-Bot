@@ -56,6 +56,8 @@ jobs:
         run: node bot/market.mjs
         env:
           ANLIK_BORSA: ${{ env.ANLIK_BORSA }}
+          SIMCO_HEADER_NAME: ${{ secrets.SIMCO_HEADER_NAME }}
+          SIMCO_HEADER_VALUE: ${{ secrets.SIMCO_HEADER_VALUE }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
       - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
         if: ${{ always() && (steps.market-test.outcome == 'failure' || steps.exchange-test.outcome == 'failure' || steps.firestore-test.outcome == 'failure') }}

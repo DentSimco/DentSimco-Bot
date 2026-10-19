@@ -40,6 +40,8 @@ const PACE = { concurrency: 2, startIntervalMs: 550, minIntervalMs: 550, maxInte
 // Sim Companies anlık borsa (market/all): saniyede 2 istek (500 ms, 2 paralel). SimcoTools'tan ayrı sunucu: iki tur birlikte, ayrı hız kapısıyla çalışır.
 const EX_PACE = { concurrency: 2, startIntervalMs: 500, minIntervalMs: 500, maxIntervalMs: 4000, retries: 3 };
 const EXCHANGE_ON = process.env.ANLIK_BORSA !== '0'; // '0' ise anlık borsa çekilmez (acil kapatma); önceki değerler korunur
+// Oyun geliştiricisinin tanımladığı tanıma başlığı (muafiyet kuralı için; GitHub çalıştırıcılarının IP'si sabit değil). İkisi de doluysa yalnız Sim Companies isteklerine eklenir.
+const EX_HEADERS = process.env.SIMCO_HEADER_NAME && process.env.SIMCO_HEADER_VALUE ? { [process.env.SIMCO_HEADER_NAME]: process.env.SIMCO_HEADER_VALUE } : undefined;
 const FETCH_BUDGET_MS = 4 * 60_000; // 5 dakikalık aralığın içinde bitmeli (≈290 istek ≈ 160 sn)
 const BUCKET = 5 * 60_000;          // mum süresi
 const MIN_FRAC = 0.2;               // sürmekte olan mumun geçen kısmı bunun altına inmez (en çok 5 kat büyütme)
@@ -190,11 +192,14 @@ export async function main() {
 
   // Sim Companies anlık borsa: SimcoTools turuyla birlikte (ayrı sunucu, ayrı hız kapısı). Hata verirse SimcoTools verisi yine yazılır.
   const exPacer = createPacer({ deadline, ...EX_PACE });
+  // Anlık veri en eski olan ürün önce: oyun sunucusu 429 verip tur yavaşlarsa kalan ürünler sonraki turda öne geçer (hep aynı ilk ürünler çekilmez).
+  const exStale = (t) => { const at = prevLive[t.r]?.[t.id]?.[2]; return at ? t0 - at : Infinity; };
+  const exTasks = tasks.map((t, i) => ({ t, i, s: exStale(t) })).sort((a, b) => (b.s - a.s) || (a.i - b.i)).map((x) => x.t);
   const exchangeRound = EXCHANGE_ON
     ? runPool(
-      tasks,
+      exTasks,
       async (t) => {
-        const json = await fetchPaced(`${CONFIG.simcoBase}/api/v3/market/all/${t.r}/${t.id}/`, exPacer, { deadline, retries: EX_PACE.retries });
+        const json = await fetchPaced(`${CONFIG.simcoBase}/api/v3/market/all/${t.r}/${t.id}/`, exPacer, { deadline, retries: EX_PACE.retries, headers: EX_HEADERS });
         return { summary: summarizeOrders(parseOrders(json)), at: Date.now() };
       },
       { concurrency: EX_PACE.concurrency, delayMs: 0, deadline },
@@ -209,7 +214,8 @@ export async function main() {
     },
     { concurrency: PACE.concurrency, delayMs: 0, deadline },
   );
-  const [results, exResults] = await Promise.all([simcoRound, exchangeRound]);
+  const [results, exRaw] = await Promise.all([simcoRound, exchangeRound]);
+  const exResults = new Map(exTasks.map((t, i) => [`${t.r}_${t.id}`, exRaw[i]]));
   clearInterval(progress);
   const throttled = pacer.stat.throttled;
   const fetchMs = Date.now() - t0;
@@ -230,7 +236,7 @@ export async function main() {
     const prevItem = prevLive[r]?.[id];
 
     // Anlık borsa (Sim Companies): kalite başına ask ve arz; çekilemediyse null
-    const exRes = exResults[i];
+    const exRes = exResults.get(`${r}_${id}`);
     let ex = null;
     let exAt = null;
     if (EXCHANGE_ON) {
@@ -318,14 +324,14 @@ export async function main() {
 
   const rate = { perSec: pacer.stat.ok && fetchMs ? round(pacer.stat.ok / (fetchMs / 1000), 2) : 0, intervalMs: pacer.interval, retryAfterMs: pacer.stat.retryAfterSeen, note: pacer.stat.note };
   const exchange = EXCHANGE_ON
-    ? { on: true, stats: exStats, throttled: exPacer.stat.throttled, intervalMs: exPacer.interval, errors: exErrors }
+    ? { on: true, stats: exStats, throttled: exPacer.stat.throttled, intervalMs: exPacer.interval, note: exPacer.stat.note, errors: exErrors }
     : { on: false };
   const status = { v: VERSION, t: t0, fetchMs, totalMs: Date.now() - t0, throttled, rate, stats, errors, wrote: writeNow, exchange };
   writes.push({ type: 'set', path: PATHS.meta('status'), data: { data: JSON.stringify(status), u: t0 } });
   await db.commit(writes);
 
   console.log(`DentSimco borsa | ${summary} | 429=${throttled} | hız=${rate.perSec}/sn aralık=${rate.intervalMs}ms | çekme=${(fetchMs / 1000).toFixed(1)}sn | toplam=${((Date.now() - t0) / 1000).toFixed(1)}sn | gün içi nokta: ${realms.map((r) => `r${r}=${writeNow[r] ? 'yazıldı' : 'birikti'}`).join(' ')}${dailyCount ? ` | günlük özet=${dailyCount} ürün` : ''}`);
-  if (EXCHANGE_ON) console.log(`Anlık borsa (Sim Companies) | ${realms.map((r) => `r${r} tamam=${exStats[r].ok} hata=${exStats[r].fail} atlandı=${exStats[r].skipped}`).join(' | ')} | 429=${exPacer.stat.throttled} | aralık=${exPacer.interval}ms`);
+  if (EXCHANGE_ON) console.log(`Anlık borsa (Sim Companies) | ${realms.map((r) => `r${r} tamam=${exStats[r].ok} hata=${exStats[r].fail} atlandı=${exStats[r].skipped}`).join(' | ')} | 429=${exPacer.stat.throttled} | aralık=${exPacer.interval}ms${exPacer.stat.note ? ` | sunucu yanıtı: ${exPacer.stat.note}` : ''}${EX_HEADERS ? ' | tanıma başlığı: var' : ''}`);
   if (errors.length) console.log('İlk hatalar:', errors.slice(0, 5).join(' ; '));
   if (exErrors.length) console.log('Anlık borsa hataları:', exErrors.slice(0, 5).join(' ; '));
   const missing = realms.reduce((sum, r) => sum + stats[r].skipped + stats[r].fail, 0);
