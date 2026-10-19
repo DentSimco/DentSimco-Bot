@@ -50,43 +50,7 @@ export function summarizeOrders(orders) {
 
 const round = (x, d = 0) => Math.round(x * 10 ** d) / 10 ** d;
 
-/**
- * Canlı kalite satırlarına anlık borsa verisini işler: {q: [son işlem fiyatı, arz, satış, tutar, son işlem zamanı, ask]}
- *  liveQ = SimcoTools'tan hesaplanan satırlar ({q: [fiyat, null, satış, tutar, sonİşlem]}); SimcoTools çekilemediyse önceki satırlar
- *  prevQ = önceki canlı kayıttaki satırlar
- *  ex    = summarizeOrders çıktısı; null ise bu turda ilanlar çekilemedi: önceki arz ve ask korunur (askT eskir)
- */
-export function mergeLive(liveQ, prevQ, ex) {
-  const out = {};
-  const qs = new Set(Object.keys(liveQ || {}));
-  if (ex) for (const q of Object.keys(ex)) qs.add(q);
-  else for (const [q, v] of Object.entries(prevQ || {})) if (v?.[5] != null || v?.[1] != null) qs.add(q);
-  for (const q of qs) {
-    const row = liveQ?.[q] ? [...liveQ[q]] : [null, null, 0, 0, null];
-    while (row.length < 5) row.push(null);
-    if (ex) {
-      row[1] = ex[q] ? ex[q].supply : 0;
-      row[5] = ex[q]?.ask ?? null;
-    } else {
-      row[1] = prevQ?.[q]?.[1] ?? row[1] ?? null;
-      row[5] = prevQ?.[q]?.[5] ?? null;
-    }
-    out[q] = row;
-  }
-  return out;
-}
-
-/** Gün içi nokta: [son işlem fiyatı, arz, biriken satış, biriken tutar, ask]. Anlık veri yoksa arz ve ask boş (null) yazılır. */
-export function mergeIntraday(intraday, mergedLive, hasExchange) {
-  const out = {};
-  for (const [q, row] of Object.entries(mergedLive)) {
-    const i = intraday?.[q] || [row[0], null, 0, 0];
-    out[q] = [i[0] ?? null, hasExchange ? row[1] : null, i[2] ?? 0, i[3] ?? 0, hasExchange ? row[5] : null];
-  }
-  return out;
-}
-
-// Günlük ortalama arz için kalite durumuna eklenen alanlar (botstate: [mumDk, mumTahmini, accS, accV, ...]):
+// Günlük ortalama arz için kalite durumu (botstate/xstate_r{realm}; ilk dört eleman eski biçimle uyum için boş):
 //   [4] örneklerin günü, [5] arz toplamı, [6] örnek sayısı, [7] önceki günün tarihi, [8] önceki günün ortalama arzı
 
 /** Bir kalite durumuna bugünkü arz örneğini ekler; gün değişmişse dünün ortalamasını [7],[8]'e taşır. */

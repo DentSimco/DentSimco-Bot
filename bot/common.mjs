@@ -3,14 +3,17 @@
 // bot/market.mjs başındadır; sıralama botununki (PACE, BUDGET_MS) bot/ranking.mjs başındadır.
 //
 // FIRESTORE VERİ HARİTASI (dashboard bunları okur)
-//   live/r{realm}                  data = JSON {t, items: {id: [t, {q: [p,a,s,v,lt,ask]}, askT]}}   son ölçüm
+//   live/r{realm}                  data = JSON {t, items: {id: [t, {q: [p,a,s,v,lt]}]}}   son ölçüm (SimcoTools borsa botu, borsa.yml)
+//                                  anlik = JSON {t, items: {id: [askT, {q: [ask, arz]}]}}  anlık borsa (Sim Companies, anlik-borsa.yml)
+//   intraday/r{realm}_{gün}_a{NN}  a{SSDD} = JSON {id: {q: [ask, arz]}}               anlık borsa örnekleri (≈10 dk)
+//   daily/r{realm}_{id}_{yıl}      a{AAGG} = JSON {q: ortalama arz}                     anlık borsa botu, günlük ortalama arz
 //   intraday/r{realm}_{gün}_s{NN}  t{SSDD} = JSON {id: {q: [p,a,s,v]}}             15 dk'lık noktalar
 //   daily/r{realm}_{id}_{yıl}      d{AAGG} = JSON {q: [açılış,yüksek,düşük,kapanış,ortArz,satış,değer]}
 //   meta/products_r{realm}, meta/tradable, meta/buildings, meta/core,
 //   meta/modifiers_r{realm}, meta/retail_r{realm}, meta/status, meta/rollup
 //   botstate/mstate_r{realm}       yalnız borsa botu okur (turlar arası biriken satış durumu); dashboard okumaz (Firestore kuralları bu koleksiyonu kapalı tutar)
 //
-//   p = son işlem fiyatı (SimcoTools), a = o kalitedeki satıştaki toplam adet (arz, Sim Companies), ask = anlık borsa fiyatı (kalitesi ≥ q olan en ucuz ilan),
+//   p = son işlem fiyatı (SimcoTools), a = arz (data içinde boş; anlık borsadan gelir), ask = anlık borsa fiyatı (kalitesi ≥ q olan en ucuz ilan),
 //   s = tahmini satılan adet (önceki ölçümden beri), v = tahmini satış tutarı
 //   VWAP = toplam v / toplam s.  Parça (shard) numarası = ürün ID % 16.  Saatler UTC.
 
@@ -27,7 +30,7 @@ export const CONFIG = {
   constants: { concurrency: 3, delayMs: 300 },
 };
 
-const HEADERS = {
+export const HEADERS = {
   Accept: 'application/json',
   'User-Agent': 'Mozilla/5.0 (compatible; DentSimco-Bot/2.0)',
 };
@@ -57,6 +60,7 @@ export function addDays(day, n) {
 export const PATHS = {
   live: (r) => `live/r${r}`,
   intraday: (r, day, s) => `intraday/r${r}_${day}_s${pad2(s)}`,
+  intradayAnlik: (r, day, s) => `intraday/r${r}_${day}_a${pad2(s)}`, // anlık borsa botu: gün içi ask/arz örnekleri
   daily: (r, id, year) => `daily/r${r}_${id}_${year}`,
   meta: (name) => `meta/${name}`,
   botState: (name) => `botstate/${name}`,
