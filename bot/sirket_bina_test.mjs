@@ -1,5 +1,5 @@
 // DentSimco — şirket binaları botu sınaması. Çalıştırma: node bot/sirket_bina_test.mjs (ağa çıkılmaz)
-import { kayit, siradakiler, ozet, budayEski, sonrakiDurum, etkinRealmlar, parcaYolu, PARCA, GAP_MS } from './sirket_bina.mjs';
+import { kayit, siradakiler, ozet, toplamSeviye, budayEski, sonrakiDurum, etkinRealmlar, parcaYolu, PARCA, GAP_MS } from './sirket_bina.mjs';
 
 const results = [];
 function test(name, fn) {
@@ -51,13 +51,20 @@ test('realm seçimi: SBINA_REALMLER yalnız o realmları tarar, geçersiz ya da 
   eq(etkinRealmlar(undefined, [0, 1]), [0, 1]);
 });
 
+test('kesin toplam seviye yönetim giderinden: 1 + (L − 1) ÷ 170', () => {
+  eq(toplamSeviye(3.0235294117647058), 345);
+  eq(toplamSeviye(1), 1);
+  eq(toplamSeviye(1 + 12 / 170), 13);
+  eq(toplamSeviye(null), null);
+});
+
 test('özet: bina türü başına şirket, bina, toplam ve en yüksek seviye, en büyükler, GO seviyeleri', () => {
   const H = 3600_000;
   const p = [{ c: { 1: { n: 'A', t: 100 * H, go: 4, b: [['6', 15], ['6', 10], ['r', 5]] }, 2: { n: 'B', t: 99 * H, go: 4, b: [['6', 30]] } } }, { c: { 3: { n: 'C', t: 10 * H, go: 2, b: [] } } }];
   const o = ozet(p, 100 * H);
   eq(o.kinds['6'], [2, 3, 55, 30, { 10: 1, 15: 1, 30: 1 }]);
   eq(o.kinds.r, [1, 1, 5, 5, { 5: 1 }]);
-  eq(o.top['6'], [[2, 'B', 30, 1], [1, 'A', 25, 2]]);
+  eq(o.top['6'], [[2, 'B', 30, 1, null], [1, 'A', 25, 2, null]]);
   eq(o.go, { 2: 1, 4: 2 });
   eq([o.sirket, o.gun], [3, 2]);
 });

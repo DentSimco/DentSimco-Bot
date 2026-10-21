@@ -16,7 +16,7 @@
 //     meşguliyet: oyunun kodu (b inşa/genişletme, r üretim, s satış, u bakım, a robot, e restoran yenileme, o restoran açık,
 //                 c açık artırmada, n besleme, g yumurta)
 //   meta/sb_ozet_r{realm}    {v, t, taranan (son taranan sıra), toplam (sıralamadaki şirket), gunu, sirket, gun (son 36 saatte taranan), kinds: {harf: [şirket, bina, toplamSeviye, enYüksekSeviye, {seviye: adet}]},
-//                             top: {harf: [[şirketNo, ad, toplamSeviye, binaSayısı], ... en çok 15]}, go: {seviye: şirket}}
+//                             top: {harf: [[şirketNo, ad, toplamKademe, binaSayısı, kesinToplamSeviye], ... en çok 15]}, go: {seviye: şirket}}
 //   botstate/sbina           {gun: taramanın başladığı gün, r0/r1: son taranan sıra, n0/n1: sıralamadaki şirket, b0/b1: realm taraması bitti, bitti}   (yalnız bot okur)
 // SBINA_REALMLER (ör. "0"): yalnız o realmlar taranır (öncelik vermek için); boşsa hepsi.
 
@@ -58,6 +58,9 @@ export function siradakiler(rows, sonSira) {
   return rows.filter((r) => r[2] > (sonSira || 0)).sort((a, b) => a[2] - b[2]);
 }
 
+// Yönetim giderinden kesin toplam seviye: profildeki yönetim gideri = 1 + (L − 1) ÷ 170 (dinlenme, mevsimlik pazar ve akademi hariç binalar)
+export const toplamSeviye = (ao) => (Number.isFinite(ao) ? Math.round((ao - 1) * 170 + 1) : null);
+
 // Tüm parçalardan özet
 export function ozet(parcalar, now) {
   const kinds = {};
@@ -79,7 +82,7 @@ export function ozet(parcalar, now) {
       }
       for (const [harf, [toplam, adet]] of Object.entries(sirketTur)) {
         kinds[harf][0]++;
-        (top[harf] ||= []).push([Number(id), k.n, toplam, adet]);
+        (top[harf] ||= []).push([Number(id), k.n, toplam, adet, toplamSeviye(k.ao)]);
       }
     }
   }
