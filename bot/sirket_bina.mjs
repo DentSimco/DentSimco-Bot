@@ -13,6 +13,8 @@
 //     kayıt = {n: ad, t: tarama anı, lv: şirket seviyesi, rt: rating, w: işçi, ao: yönetim gideri %, rb: dinlenme bonusu,
 //              pm: üretim değiştiricisi, sm: satış değiştiricisi, go: GO seviyesi, ls: son görülme, cc: ülke,
 //              b: [[harf, kademe, meşguliyet|null, meşguliyetBitişi|null, lüks(0|1), ücretsizKilitli(0|1)], ...]}
+//     bv = bina değeri (profil geçmişi): 0,5 × Σ maliyet × GERÇEK seviye (akademi, banka, dinlenme dahil; ücretsiz bina hariç). 21 Ekim 2026'da 16 şirkette
+//          bire bir doğrulandı (maliyet = costUnits × 6900). Yönetim giderindeki toplam seviyeyle birlikte tür başına gerçek seviyeyi çözmek için saklanır.
 //     kademe = profildeki "size": gerçek seviye değil, görsel kademenin alt sınırı (1, 2, 3, 6, 10, 15); gerçek toplam seviye ao'dan hesaplanır
 //     ücretsizKilitli = oyunun ücretsiz verdiği kilitli bina (ör. ilk mevsimlik pazar); yönetim giderine girmez
 //     meşguliyet: oyunun kodu (b inşa/genişletme, r üretim, s satış, u bakım, a robot, e restoran yenileme, o restoran açık,
@@ -51,7 +53,7 @@ export function kayit(json, now) {
   return {
     n: String(p.company ?? ''), t: now, lv: num(p.level), rt: p.ratingCode ?? null, w: num(inf.workers), ao: num(inf.administrationOverhead),
     rb: num(inf.recreationBonus), pm: num(p.productionModifier), sm: num(p.salesModifier), go: num(json.governmentOrderTierIndex),
-    ls: p.lastSeen ?? null, cc: p.countryCodeIsoUserSet || null, b,
+    ls: p.lastSeen ?? null, cc: p.countryCodeIsoUserSet || null, bv: num(json.history?.buildingValue), b,
   };
 }
 
