@@ -17,7 +17,8 @@
 //                 c açık artırmada, n besleme, g yumurta)
 //   meta/sb_ozet_r{realm}    {v, t, taranan (son taranan sıra), toplam (sıralamadaki şirket), gunu, sirket, gun (son 36 saatte taranan), kinds: {harf: [şirket, bina, toplamSeviye, enYüksekSeviye, {seviye: adet}]},
 //                             top: {harf: [[şirketNo, ad, toplamSeviye, binaSayısı], ... en çok 15]}, go: {seviye: şirket}}
-//   botstate/sbina           {gun: taramanın başladığı gün, r0/r1: son taranan sıra, n0/n1: sıralamadaki şirket, bitti}   (yalnız bot okur)
+//   botstate/sbina           {gun: taramanın başladığı gün, r0/r1: son taranan sıra, n0/n1: sıralamadaki şirket, b0/b1: realm taraması bitti, bitti}   (yalnız bot okur)
+// SBINA_REALMLER (ör. "0"): yalnız o realmlar taranır (öncelik vermek için); boşsa hepsi.
 
 import { CONFIG, PATHS, parseJSON, runIfMain, utcDay } from './common.mjs';
 import { Firestore } from './firestore.mjs';
@@ -86,9 +87,15 @@ export function ozet(parcalar, now) {
   return { v: VERSION, t: now, sirket, gun, kinds, top, go };
 }
 
+// Taranacak realmlar: SBINA_REALMLER (virgülle, ör. "0") verilirse yalnız onlar; yoksa hepsi. Öncelik vermek için kullanılır.
+export function etkinRealmlar(env, hepsi = CONFIG.realms) {
+  const secilen = String(env ?? '').split(',').map((x) => x.trim()).filter(Boolean).map(Number).filter((x) => hepsi.includes(x));
+  return secilen.length ? [...new Set(secilen)] : [...hepsi];
+}
+
 // Tarama durumu: bitmemiş tarama (gün değişse de) kaldığı yerden sürer; biten taramadan sonra yenisi ertesi gün başlar.
 export function sonrakiDurum(state, bugun, zorla = false) {
-  if (!state?.gun || (state.bitti && (state.gun !== bugun || zorla))) return { gun: bugun, r0: 0, r1: 0, bitti: false };
+  if (!state?.gun || (state.bitti && (state.gun !== bugun || zorla))) return { gun: bugun, r0: 0, r1: 0, b0: false, b1: false, bitti: false };
   return { ...state };
 }
 
@@ -116,16 +123,17 @@ export async function main() {
   const statePath = PATHS.botState('sbina');
   let state = parseJSON((await db.getMany([statePath])).get(statePath)?.data) || {};
   state = sonrakiDurum(state, bugun, process.env.SBINA_ZORLA === '1');
-  if (state.bitti) { console.log(`DentSimco şirket binaları | ${bugun} taraması zaten bitti`); return; }
+  const realmler = etkinRealmlar(process.env.SBINA_REALMLER).filter((r) => !state[`b${r}`]);
+  if (state.bitti || !realmler.length) { console.log(`DentSimco şirket binaları | ${bugun} | seçili realmların taraması zaten bitti`); return; }
 
   const gate = createGate({ deadline: t0 + BUDGET_MS, gapMs: GAP_MS });
   const sira = {};
-  for (const r of CONFIG.realms) {
+  for (const r of realmler) {
     const rows = await rankingRows(db, r);
     state[`n${r}`] = rows.length;
     sira[r] = siradakiler(rows, state[`r${r}`]);
   }
-  const bekleyen = new Map(CONFIG.realms.map((r) => [r, new Map()])); // realm → (şirketNo → kayıt | null = silinmiş)
+  const bekleyen = new Map(realmler.map((r) => [r, new Map()])); // realm → (şirketNo → kayıt | null = silinmiş)
   let sonYazma = Date.now();
   let taranan = 0;
   let hata = 0;
@@ -133,7 +141,7 @@ export async function main() {
 
   async function yaz(sonMu) {
     const writes = [];
-    for (const r of CONFIG.realms) {
+    for (const r of realmler) {
       const m = bekleyen.get(r);
       const tumYollar = Array.from({ length: PARCA }, (_, i) => parcaYolu(r, i));
       const docs = await db.getMany(tumYollar);
@@ -156,7 +164,7 @@ export async function main() {
 
   // Realmlar dönüşümlü taranır (ikisi birlikte ilerler); her realmda büyük şirketler önce
   const kuyruk = [];
-  for (let i = 0; i < Math.max(...CONFIG.realms.map((r) => sira[r].length)); i++) for (const r of CONFIG.realms) if (sira[r][i]) kuyruk.push([r, sira[r][i]]);
+  for (let i = 0; i < Math.max(...realmler.map((r) => sira[r].length)); i++) for (const r of realmler) if (sira[r][i]) kuyruk.push([r, sira[r][i]]);
   let durdu = null;
   for (const [r, row] of kuyruk) {
     try {
@@ -172,9 +180,10 @@ export async function main() {
     state[`r${r}`] = Math.max(state[`r${r}`] || 0, row[2]);
     if (Date.now() - sonYazma >= FLUSH_MS) await yaz(false);
   }
-  if (!durdu) state.bitti = true;
+  if (!durdu) for (const r of realmler) state[`b${r}`] = true;
+  state.bitti = CONFIG.realms.every((r) => state[`b${r}`]);
   await yaz(true);
-  console.log(`DentSimco şirket binaları | ${bugun} | ${taranan} şirket tarandı, ${hata} hata | istek=${gate.stat.req} 429=${gate.stat.n429} | ${state.bitti ? 'günün taraması bitti' : `devam edecek (${durdu})`} | ${((Date.now() - t0) / 60000).toFixed(1)} dk`);
+  console.log(`DentSimco şirket binaları | ${bugun} | ${taranan} şirket tarandı, ${hata} hata | istek=${gate.stat.req} 429=${gate.stat.n429} | ${durdu ? `devam edecek (${durdu})` : state.bitti ? 'günün taraması bitti' : `realm ${realmler.join(',')} bitti, diğerleri bekliyor`} | ${((Date.now() - t0) / 60000).toFixed(1)} dk`);
   if (durdu && durdu !== 'süre') throw new Error(durdu);
 }
 

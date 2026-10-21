@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+# Hangi realmlar taransın: '0' = yalnız R1 (öncelik), '1' = yalnız R2, boş = ikisi de. R1 bitince '' yapın.
+env:
+  SBINA_REALMLER: '0'
+
 concurrency:
   group: dentsimco-sirket-bina
   cancel-in-progress: false
@@ -44,6 +48,7 @@ jobs:
           SIMCO_HEADER_NAME: ${{ secrets.SIMCO_HEADER_NAME }}
           SIMCO_HEADER_VALUE: ${{ secrets.SIMCO_HEADER_VALUE }}
           SBINA_ZORLA: ${{ github.event.inputs.zorla == '1' && '1' || '0' }}
+          SBINA_REALMLER: ${{ env.SBINA_REALMLER }}
       - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
         if: ${{ always() && (steps.sbina-test.outcome == 'failure') }}
         run: |

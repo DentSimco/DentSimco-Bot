@@ -1,5 +1,5 @@
 // DentSimco — şirket binaları botu sınaması. Çalıştırma: node bot/sirket_bina_test.mjs (ağa çıkılmaz)
-import { kayit, siradakiler, ozet, budayEski, sonrakiDurum, parcaYolu, PARCA, GAP_MS } from './sirket_bina.mjs';
+import { kayit, siradakiler, ozet, budayEski, sonrakiDurum, etkinRealmlar, parcaYolu, PARCA, GAP_MS } from './sirket_bina.mjs';
 
 const results = [];
 function test(name, fn) {
@@ -36,11 +36,19 @@ test('sıradakiler: son taranan sıradan sonrası, sıraya göre', () => {
 });
 
 test('tarama durumu: bitmemiş tarama gün değişse de sürer, biten tarama ertesi gün yenilenir', () => {
-  eq(sonrakiDurum(null, '2026-10-21'), { gun: '2026-10-21', r0: 0, r1: 0, bitti: false });
+  eq(sonrakiDurum(null, '2026-10-21'), { gun: '2026-10-21', r0: 0, r1: 0, b0: false, b1: false, bitti: false });
   eq(sonrakiDurum({ gun: '2026-10-20', r0: 900, r1: 5, bitti: false }, '2026-10-21').r0, 900, 'yarım tarama sürer');
   eq(sonrakiDurum({ gun: '2026-10-21', r0: 900, bitti: true }, '2026-10-21').bitti, true, 'bugünkü bitti');
   eq(sonrakiDurum({ gun: '2026-10-20', r0: 900, bitti: true }, '2026-10-21').r0, 0, 'ertesi gün yeni tarama');
   eq(sonrakiDurum({ gun: '2026-10-21', r0: 900, bitti: true }, '2026-10-21', true).r0, 0, 'zorla');
+});
+
+test('realm seçimi: SBINA_REALMLER yalnız o realmları tarar, geçersiz ya da boşsa hepsi', () => {
+  eq(etkinRealmlar('0', [0, 1]), [0]);
+  eq(etkinRealmlar('1,0,0', [0, 1]), [1, 0]);
+  eq(etkinRealmlar('', [0, 1]), [0, 1]);
+  eq(etkinRealmlar('7', [0, 1]), [0, 1]);
+  eq(etkinRealmlar(undefined, [0, 1]), [0, 1]);
 });
 
 test('özet: bina türü başına şirket, bina, toplam ve en yüksek seviye, en büyükler, GO seviyeleri', () => {
