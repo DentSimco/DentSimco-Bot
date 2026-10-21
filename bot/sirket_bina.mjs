@@ -30,7 +30,7 @@ import { createGate } from './diger.mjs';
 
 const VERSION = 1;
 export const PARCA = 128;
-export const GAP_MS = 500;           // saniyede en fazla 2 istek; bu uç nokta ara sıra 429 verir (~%9), kapı 2 sn bekleyip sürdürür (ölçüm: ~1,2 şirket/sn)
+export const GAP_MS = 1000;          // saniyede 1 istek (kullanıcı kararı); 429 gelirse kapı 2 sn bekleyip sürdürür
 const BUDGET_MS = 110 * 60_000;      // bir çalışma en çok (iş 2 saatte bir başlar)
 const FLUSH_MS = 55 * 60_000;        // toplanan kayıtlar bu aralıkla yazılır (çalışma başına ~2 yazım: Firestore yazma kotası)
 const TOP_N = 15;
