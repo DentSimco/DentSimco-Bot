@@ -1,0 +1,51 @@
+# DentSimco — Şirketlerin binaları (Sim Companies herkese açık şirket profili)
+# 2 saatte bir başlar (UTC, her çift saatin 40. dakikası); her çalışma en çok 110 dakika, kaldığı yerden sürer. Günde bir tam tarama:
+# sıralamadaki tüm şirketler (~35 bin) büyükten küçüğe, istekler arası 1 sn (Sim Companies bu uç noktada dakikada ~60 isteğin
+# üstünde 429 veriyor); 429 gelirse 2 sn beklenip devam edilir. Yalnız GET isteği atılır. Tarama ~10 saat sürer; bitince o günün
+# sonraki çalışmaları hemen çıkar. Elle yeni tarama: Actions > Run workflow (zorla: 1).
+# Kendi kuyruğu vardır; borsa ve Diğer botlarını bekletmez.
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
+name: DentSimco Sirket Bina
+
+on:
+  schedule:
+    - cron: '40 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      zorla:
+        description: 'Bugünkü tarama bittiyse yeniden başlat (1)'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-sirket-bina
+  cancel-in-progress: false
+
+jobs:
+  sirket-bina:
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        id: sbina-test
+        continue-on-error: true
+        run: node bot/sirket_bina_test.mjs
+      - name: Şirketlerin binalarını tara
+        run: node bot/sirket_bina.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SIMCO_HEADER_NAME: ${{ secrets.SIMCO_HEADER_NAME }}
+          SIMCO_HEADER_VALUE: ${{ secrets.SIMCO_HEADER_VALUE }}
+          SBINA_ZORLA: ${{ github.event.inputs.zorla == '1' && '1' || '0' }}
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && (steps.sbina-test.outcome == 'failure') }}
+        run: |
+          echo "::error::Sınama başarısız (sbina-test); ayrıntı ilgili adımda."
+          exit 1

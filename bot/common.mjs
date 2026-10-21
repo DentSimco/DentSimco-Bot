@@ -13,6 +13,7 @@
 //   meta/modifiers_r{realm}, meta/retail_r{realm}, meta/status, meta/rollup
 //   meta/go_r{realm}, bina_r{realm}, ihale_r{realm}, evre_r{realm}, sert_r{realm}[_k{tür}], diger_status
 //                                  "Diğer" bölümü (bot/diger.mjs, diger.yml, saatte bir): GO, binalar, evreler, sertifikalar
+//   meta/sb_r{realm}_{NNN}, meta/sb_ozet_r{realm}   şirketlerin binaları (bot/sirket_bina.mjs, sirket-bina.yml, günde bir tarama)
 //   botstate/mstate_r{realm}       yalnız borsa botu okur (turlar arası biriken satış durumu); dashboard okumaz (Firestore kuralları bu koleksiyonu kapalı tutar)
 //
 //   p = son işlem fiyatı (SimcoTools), a = arz (data içinde boş; anlık borsadan gelir), ask = anlık borsa fiyatı (kalitesi ≥ q olan en ucuz ilan),
