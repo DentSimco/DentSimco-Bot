@@ -1,0 +1,50 @@
+# DentSimco — "Diğer" bölümünün botu: Government Order, bina verileri, ekonomi evreleri, sertifikalar
+# Saatte bir çalışır (her saatin 23. dakikası, UTC). Hafif tur ~40 istek; günde bir tam tur (sertifika kazananları, tüm GO geçmişi,
+# 2022'den bu yana günlük realm özeti) ~650 istek, 6-8 dakika. Elle tam tur: Actions > Run workflow (tam: 1).
+# Hız: Simcotools ve Sim Companies için tek kapı, saniyede 2 istekten az (550 ms aralık); 429 gelirse 2 sn beklenip devam edilir.
+# Yalnız GET isteği atılır. Kendi kuyruğu vardır; borsa botlarını yavaşlatmaz.
+# Güvenlik: GitHub eylemi değişmez commit numarasıyla (SHA) çağrılır.
+name: DentSimco Diger
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      tam:
+        description: 'Tam tur (1) ya da hafif tur (0)'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentsimco-diger
+  cancel-in-progress: false
+
+jobs:
+  diger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - name: Sınama (başarısız olursa veri yine toplanır, iş sonunda kırmızı biter)
+        id: diger-test
+        continue-on-error: true
+        run: node bot/diger_test.mjs
+      - name: Diğer verilerini topla
+        run: node bot/diger.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SIMCO_HEADER_NAME: ${{ secrets.SIMCO_HEADER_NAME }}
+          SIMCO_HEADER_VALUE: ${{ secrets.SIMCO_HEADER_VALUE }}
+          DIGER_FULL: ${{ github.event.inputs.tam == '1' && '1' || '0' }}
+      - name: Sınama başarısızsa işi kırmızıya çevir (veri yukarıda toplandı; bildirim gelsin)
+        if: ${{ always() && (steps.diger-test.outcome == 'failure') }}
+        run: |
+          echo "::error::Sınama başarısız (diger-test); ayrıntı ilgili adımda."
+          exit 1

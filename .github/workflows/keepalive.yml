@@ -24,7 +24,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          for wf in borsa.yml sabit-veri.yml phase.yml keepalive.yml; do
+          for wf in borsa.yml sabit-veri.yml phase.yml diger.yml keepalive.yml; do
             gh workflow enable "$wf"
             echo "etkinleştirildi: $wf"
           done
