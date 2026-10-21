@@ -20,7 +20,7 @@ const YANIT = {
   history: { value: 232628622, buildingValue: 6058200 },
 };
 
-test('hız: saniyede en fazla 2 istek (aralık en az 500 ms)', () => ok(GAP_MS >= 500));
+test('hız: istekler arası en az 1 sn (saniyede 1 istek)', () => ok(GAP_MS >= 1000));
 
 test('profil yanıtı kısa kayda çevrilir', () => {
   const k = kayit(YANIT, 5);
