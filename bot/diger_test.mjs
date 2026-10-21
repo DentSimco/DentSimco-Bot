@@ -1,6 +1,6 @@
 // DentSimco — "Diğer" botu sınaması. Çalıştırma: node bot/diger_test.mjs (ağa çıkılmaz)
 import {
-  createGate, allPages, mergeGo, goFromSc, buildingCounts, addBuildingDay, compactAuction, compactSummaries, mergeDays,
+  createGate, allPages, mergeGo, goFromSc, buildingCounts, addBuildingDay, compactSummaries, mergeDays,
   compactRanges, compactEvents, certValue, certPeriod, compactCert, fitRows, GAP_MS, WAIT_429_MS,
 } from './diger.mjs';
 
@@ -110,13 +110,6 @@ test('bina: sayılar, geçmiş günü ve eski günlerin düşmesi', () => {
   eq(Object.keys(h).length, 400);
   ok(!(20250000 in h) && (20250404 in h), 'en eski günler düşmeli');
   eq(h[20250404], { E: 35069 });
-});
-
-test('bina açık artırması kısa satıra çevrilir', () => {
-  const a = compactAuction({ id: 5, buildingKind: 'O', buildingSize: 20, buildingRobots: 10, minBid: 1380000, guaranteedReturn: 1104000, closesAt: '2026-10-21T11:59:00.183Z',
-    startedAt: '2026-10-20T11:06:56.183019+00:00', promoted: true, sellerId: 7, seller: { company: 'X' }, auctionbuildingabundanceSet: [{ resourceKind: 10, abundanceLevel: 'Exceptional' }] });
-  eq(a, [5, 'O', 20, 10, 1380000, 1104000, Date.parse('2026-10-21T11:59:00.183Z'), Date.parse('2026-10-20T11:06:56.183Z'), 1, 7, 'X', [[10, 'Exceptional']]]);
-  eq(compactAuction({}), null);
 });
 
 test('evre: günlük özet birleşir, yarım gün eksiğini eskiden alır; evreler sıralanır', () => {

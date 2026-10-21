@@ -6,7 +6,6 @@
 //
 // Kaynaklar (GET):
 //   Sim Companies  /api/v3/government-orders/{realm}/                ilandaki ve yürüyen siparişler (miktar, çarpan, tahmini değer)
-//                  /api/v2/building-auctions/{realm}/                açık bina açık artırmaları
 //                  /api/v2/certificates-explorer/{realm}/latest/     son verilen sertifikalar
 //                  /api/v2/certificates-explorer/{realm}/rarest/     sertifika nadirliği
 //                  /api/v2/certificates-explorer/{realm}/certificate/{tür}/-/-/   türü taşıyan şirket sayısı, en çok toplayanlar
@@ -22,7 +21,6 @@
 //                           k = proje anahtarı, n = İngilizce proje adı, c = oluşturulma (ms), d = teslim günü, s = büyüklük,
 //                           m = verilen çarpan (ilandayken null), e = tahmini temel değer, f = ilk görülme, l = Sim Companies'te son görülme
 //   meta/bina_r{realm}      {v, t, date, total, counts: {harf: [sayı, pay]}, hist: {YYYYMMDD: {harf: sayı}}}
-//   meta/ihale_r{realm}     {v, t, list: [[id, harf, seviye, robot, enAzTeklif, garantiliGeri, kapanış, başlangıç, öne çıkan, satıcıNo, satıcı, bolluk]]}
 //   meta/evre_r{realm}      {v, t, realm: {...}, ranges: [[evre, baş, bit]], days: [[YYYYMMDD, aktifŞirket, değer, bina, bono, evre]],
 //                            events: [[id, ürün, hız%, baş, bit, bina]], contests: [[id, ad, ürün, baş, bit]]}
 //   meta/sert_r{realm}      {v, t, full, kinds: {tür: {rel, res, total, cnt, rar, score, vk}}, latest: [[id, şirketNo, şirket, tür, değer, zaman]]}
@@ -189,16 +187,6 @@ export function addBuildingDay(hist, day, counts) {
   return out;
 }
 
-export function compactAuction(a) {
-  const id = num(a?.id);
-  if (id == null) return null;
-  return [
-    id, String(a.buildingKind ?? ''), num(a.buildingSize), num(a.buildingRobots), num(a.minBid), num(a.guaranteedReturn),
-    ms(a.closesAt), ms(a.startedAt), a.promoted ? 1 : 0, num(a.sellerId ?? a.seller?.id), String(a.seller?.company ?? ''),
-    (a.auctionbuildingabundanceSet || []).map((x) => [num(x.resourceKind), String(x.abundanceLevel ?? '')]),
-  ];
-}
-
 // ---- Evre ----
 export function compactSummaries(list) {
   const rows = new Map();
@@ -307,11 +295,6 @@ export async function realmRun(r, { get, now, prevDocs, full, errors }) {
     const date = ymd(realm?.date) || ymd(new Date(now).toISOString());
     put(`bina_r${r}`, { v: VERSION, t: now, date, total: num(json?.totalBuildings), counts, hist: addBuildingDay(old?.hist, date, counts) });
   });
-  await step('ihale', async () => {
-    const list = ((await get(`${SC}/api/v2/building-auctions/${r}/`))?.buildingAuctions || []).map(compactAuction).filter(Boolean);
-    put(`ihale_r${r}`, { v: VERSION, t: now, list });
-  });
-
   // Sertifikalar
   await step('sert', async () => {
     const old = prev(`sert_r${r}`);
