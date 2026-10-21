@@ -1,5 +1,6 @@
 // DentSimco — şirket binaları botu sınaması. Çalıştırma: node bot/sirket_bina_test.mjs (ağa çıkılmaz)
 import { kayit, siradakiler, ozet, toplamSeviye, budayEski, sonrakiDurum, etkinRealmlar, parcaYolu, PARCA, GAP_MS } from './sirket_bina.mjs';
+import { binaSabitleri, bvGuvenilir } from './seviye_coz.mjs';
 
 const results = [];
 function test(name, fn) {
@@ -65,9 +66,23 @@ test('özet: bina türü başına şirket, bina, toplam ve en yüksek seviye, en
   const o = ozet(p, 100 * H);
   eq(o.kinds['6'], [2, 3, 55, 30, { 10: 1, 15: 1, 30: 1 }]);
   eq(o.kinds.r, [1, 1, 5, 5, { 5: 1 }]);
-  eq(o.top['6'], [[2, 'B', 30, 1, null], [1, 'A', 25, 2, null]]);
+  eq(o.top['6'], [[2, 'B', 30, 1, null, null], [1, 'A', 25, 2, null, null]]);
   eq(o.go, { 2: 1, 4: 2 });
   eq([o.sirket, o.gun], [3, 2]);
+});
+
+test('özet: tür toplamı yönetim giderinden çözülür; bv yalnız güvenilirse kullanılır', () => {
+  const lv = (...l) => l.map((level) => ({ level }));
+  const sabit = binaSabitleri({ a: { dbLetter: '6', category: 'production', costUnits: 10, levelImages: lv(1, 2, 3, 6, 10, 15) }, b: { dbLetter: 'r', category: 'sales', costUnits: 3, levelImages: lv(1, 2, 3, 6, 10, 15) } });
+  const ao = (L) => 1 + (L - 1) / 170;
+  // A: iki fabrika 15+ ve tek mağaza 2 (kesin): L = 50 → fabrikalar toplam 48
+  const p = [{ c: { 1: { n: 'A', t: 0, ao: ao(50), b: [['6', 15, null, null, 0, 0], ['6', 15, null, null, 0, 0], ['r', 2, null, null, 0, 0]] } } }];
+  const o = ozet(p, 0, sabit);
+  eq(o.top['6'], [[1, 'A', 48, 2, 50, 48]]);
+  eq(o.kinds['6'][2], 48);
+  // Güvenilirlik: iki tarama arasında değişmeyen şirket, arada günlük kayıt alınmış
+  const k = p[0].c[1];
+  ok(bvGuvenilir({ ...k, bv: 1 }, { ...k, t: 3600_000, bv: 2 }) && !bvGuvenilir({ ...k, bv: 1 }, { ...k, t: 3600_000, bv: 1 }), 'bv güvenilirliği');
 });
 
 test('eski kayıtlar budanır; parça yolu', () => {

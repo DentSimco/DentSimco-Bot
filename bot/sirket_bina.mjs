@@ -15,18 +15,21 @@
 //              b: [[harf, kademe, meşguliyet|null, meşguliyetBitişi|null, lüks(0|1), ücretsizKilitli(0|1)], ...]}
 //     bv = bina değeri (profil geçmişi): 0,5 × Σ maliyet × GERÇEK seviye (akademi, banka, dinlenme dahil; ücretsiz bina hariç). 21 Ekim 2026'da 16 şirkette
 //          bire bir doğrulandı (maliyet = costUnits × 6900). Yönetim giderindeki toplam seviyeyle birlikte tür başına gerçek seviyeyi çözmek için saklanır.
+//     bg = 1: bv bu taramada anlık binaların değeri (önceki taramadan beri toplam seviye ve binalar aynı, arada oyunun günlük kaydı alınmış;
+//          seviye_coz.mjs bvGuvenilir). Yalnız o zaman tür seviyeleri bv ile çözülür.
 //     kademe = profildeki "size": gerçek seviye değil, görsel kademenin alt sınırı (1, 2, 3, 6, 10, 15); gerçek toplam seviye ao'dan hesaplanır
 //     ücretsizKilitli = oyunun ücretsiz verdiği kilitli bina (ör. ilk mevsimlik pazar); yönetim giderine girmez
 //     meşguliyet: oyunun kodu (b inşa/genişletme, r üretim, s satış, u bakım, a robot, e restoran yenileme, o restoran açık,
 //                 c açık artırmada, n besleme, g yumurta)
-//   meta/sb_ozet_r{realm}    {v, t, taranan (son taranan sıra), toplam (sıralamadaki şirket), gunu, sirket, gun (son 36 saatte taranan), kinds: {harf: [şirket, bina, toplamSeviye, enYüksekSeviye, {seviye: adet}]},
-//                             top: {harf: [[şirketNo, ad, toplamKademe, binaSayısı, kesinToplamSeviye], ... en çok 15]}, go: {seviye: şirket}}
+//   meta/sb_ozet_r{realm}    {v, t, taranan (son taranan sıra), toplam (sıralamadaki şirket), gunu, sirket, gun (son 36 saatte taranan), kinds: {harf: [şirket, bina, toplamSeviye (çözülmüş en az), enYüksekKademe, {kademe: adet}]},
+//                             top: {harf: [[şirketNo, ad, türToplamSeviye (en az), binaSayısı, kesinToplamSeviye, türToplamSeviye (en çok)|null], ... en çok 15]}, go: {seviye: şirket}}
 //   botstate/sbina           {gun: taramanın başladığı gün, r0/r1: son taranan sıra, n0/n1: sıralamadaki şirket, b0/b1: realm taraması bitti, bitti}   (yalnız bot okur)
 // SBINA_REALMLER (ör. "0"): yalnız o realmlar taranır (öncelik vermek için); boşsa hepsi.
 
 import { CONFIG, PATHS, parseJSON, runIfMain, utcDay } from './common.mjs';
 import { Firestore } from './firestore.mjs';
 import { createGate } from './diger.mjs';
+import { seviyeCoz, binaSabitleri, bvGuvenilir, toplamSeviye } from './seviye_coz.mjs';
 
 const VERSION = 1;
 export const PARCA = 128;
@@ -62,11 +65,11 @@ export function siradakiler(rows, sonSira) {
   return rows.filter((r) => r[2] > (sonSira || 0)).sort((a, b) => a[2] - b[2]);
 }
 
-// Yönetim giderinden kesin toplam seviye: profildeki yönetim gideri = 1 + (L − 1) ÷ 170 (dinlenme, mevsimlik pazar ve akademi hariç binalar)
-export const toplamSeviye = (ao) => (Number.isFinite(ao) ? Math.round((ao - 1) * 170 + 1) : null);
+export { toplamSeviye };
 
 // Tüm parçalardan özet
-export function ozet(parcalar, now) {
+// sabit: binaSabitleri(meta/buildings). Tür toplam seviyesi seviye_coz.mjs ile çözülür (en az değer; çözülemezse kademe toplamı).
+export function ozet(parcalar, now, sabit = null) {
   const kinds = {};
   const top = {};
   const go = {};
@@ -82,11 +85,17 @@ export function ozet(parcalar, now) {
         const s = (sirketTur[harf] ||= [0, 0]);
         s[0] += sv; s[1]++;
         const x = (kinds[harf] ||= [0, 0, 0, 0, {}]);
-        x[1]++; x[2] += sv; x[3] = Math.max(x[3], sv); x[4][sv] = (x[4][sv] || 0) + 1;
+        x[1]++; x[3] = Math.max(x[3], sv); x[4][sv] = (x[4][sv] || 0) + 1;
       }
-      for (const [harf, [toplam, adet]] of Object.entries(sirketTur)) {
+      const cz = sabit ? seviyeCoz(k, sabit) : null;
+      const coz = cz && !cz.celiski ? cz.turler : null;
+      for (const [harf, [kademe, adet]] of Object.entries(sirketTur)) {
+        const t = coz?.[harf];
+        const alt = t ? t.alt : kademe;
+        const ust = t && Number.isFinite(t.ust) ? t.ust : null;
         kinds[harf][0]++;
-        (top[harf] ||= []).push([Number(id), k.n, toplam, adet, toplamSeviye(k.ao)]);
+        kinds[harf][2] += alt;
+        (top[harf] ||= []).push([Number(id), k.n, alt, adet, toplamSeviye(k.ao), ust]);
       }
     }
   }
@@ -133,6 +142,8 @@ export async function main() {
   const realmler = etkinRealmlar(process.env.SBINA_REALMLER).filter((r) => !state[`b${r}`]);
   if (state.bitti || !realmler.length) { console.log(`DentSimco şirket binaları | ${bugun} | seçili realmların taraması zaten bitti`); return; }
 
+  const sabitYol = PATHS.meta('buildings');
+  const sabit = binaSabitleri(parseJSON((await db.getMany([sabitYol])).get(sabitYol)?.data));
   const gate = createGate({ deadline: t0 + BUDGET_MS, gapMs: GAP_MS });
   const sira = {};
   for (const r of realmler) {
@@ -156,12 +167,12 @@ export async function main() {
       const degisen = new Set();
       for (const [id, k] of m) {
         const i = Number(id) % PARCA;
-        if (k) parcalar[i].c[id] = k; else delete parcalar[i].c[id];
+        if (k) { if (bvGuvenilir(parcalar[i].c[id], k)) k.bg = 1; parcalar[i].c[id] = k; } else delete parcalar[i].c[id];
         degisen.add(i);
       }
       if (sonMu) budayEski(parcalar, Date.now()).forEach((i) => degisen.add(i));
       for (const i of degisen) writes.push({ type: 'set', path: tumYollar[i], data: { data: JSON.stringify({ ...parcalar[i], v: VERSION, t: Date.now() }), u: t0 } });
-      if (degisen.size || sonMu) writes.push({ type: 'set', path: PATHS.meta(`sb_ozet_r${r}`), data: { data: JSON.stringify({ ...ozet(parcalar, Date.now()), taranan: state[`r${r}`], toplam: state[`n${r}`] ?? null, gunu: state.gun }), u: t0 } });
+      if (degisen.size || sonMu) writes.push({ type: 'set', path: PATHS.meta(`sb_ozet_r${r}`), data: { data: JSON.stringify({ ...ozet(parcalar, Date.now(), sabit), taranan: state[`r${r}`], toplam: state[`n${r}`] ?? null, gunu: state.gun }), u: t0 } });
       m.clear();
     }
     writes.push({ type: 'set', path: statePath, data: { data: JSON.stringify(state), u: t0 } });
