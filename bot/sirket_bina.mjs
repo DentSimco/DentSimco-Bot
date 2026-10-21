@@ -12,7 +12,9 @@
 //   meta/sb_r{realm}_{NNN}   {v, t, c: {şirketNo: kayıt}}       NNN = şirketNo % PARCA (3 hane)
 //     kayıt = {n: ad, t: tarama anı, lv: şirket seviyesi, rt: rating, w: işçi, ao: yönetim gideri %, rb: dinlenme bonusu,
 //              pm: üretim değiştiricisi, sm: satış değiştiricisi, go: GO seviyesi, ls: son görülme, cc: ülke,
-//              b: [[harf, seviye, meşguliyet|null, meşguliyetBitişi|null, lüks(0|1)], ...]}
+//              b: [[harf, kademe, meşguliyet|null, meşguliyetBitişi|null, lüks(0|1), ücretsizKilitli(0|1)], ...]}
+//     kademe = profildeki "size": gerçek seviye değil, görsel kademenin alt sınırı (1, 2, 3, 6, 10, 15); gerçek toplam seviye ao'dan hesaplanır
+//     ücretsizKilitli = oyunun ücretsiz verdiği kilitli bina (ör. ilk mevsimlik pazar); yönetim giderine girmez
 //     meşguliyet: oyunun kodu (b inşa/genişletme, r üretim, s satış, u bakım, a robot, e restoran yenileme, o restoran açık,
 //                 c açık artırmada, n besleme, g yumurta)
 //   meta/sb_ozet_r{realm}    {v, t, taranan (son taranan sıra), toplam (sıralamadaki şirket), gunu, sirket, gun (son 36 saatte taranan), kinds: {harf: [şirket, bina, toplamSeviye, enYüksekSeviye, {seviye: adet}]},
@@ -44,7 +46,7 @@ export function kayit(json, now) {
   const b = (inf.buildings || []).map((x) => {
     const bas = Date.parse(x?.busy?.started);
     const sure = num(x?.busy?.duration);
-    return [String(x?.kind ?? ''), num(x?.size) ?? 1, x?.busy?.category ?? null, Number.isFinite(bas) && sure != null ? bas + sure : null, x?.restaurantProperties?.isLuxury ? 1 : 0];
+    return [String(x?.kind ?? ''), num(x?.size) ?? 1, x?.busy?.category ?? null, Number.isFinite(bas) && sure != null ? bas + sure : null, x?.restaurantProperties?.isLuxury ? 1 : 0, x?.freeAndLocked ? 1 : 0];
   }).filter((x) => x[0]);
   return {
     n: String(p.company ?? ''), t: now, lv: num(p.level), rt: p.ratingCode ?? null, w: num(inf.workers), ao: num(inf.administrationOverhead),

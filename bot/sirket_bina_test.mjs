@@ -13,7 +13,7 @@ const YANIT = {
   infrastructure: { recreationBonus: 3, workers: 34500, administrationOverhead: 3.02, buildings: [
     { id: 1, kind: '6', size: 15, busy: { category: 'b', started: '2026-10-20T10:52:06.520Z', duration: 345600000 } },
     { id: 2, kind: 'r', size: 15, restaurantProperties: { isLuxury: true } },
-    { id: 3, kind: 'y' },
+    { id: 3, kind: 'y', freeAndLocked: true },
     { id: 4 },
   ] },
   governmentOrderTierIndex: 4,
@@ -24,7 +24,7 @@ test('hız: istekler arası en az 1 sn (uç noktanın sınırı dakikada ~60)', 
 test('profil yanıtı kısa kayda çevrilir', () => {
   const k = kayit(YANIT, 5);
   eq([k.n, k.t, k.lv, k.rt, k.w, k.ao, k.rb, k.pm, k.sm, k.go, k.ls, k.cc], ['Dentium Citrosuco', 5, 25, 'AAA', 34500, 3.02, 3, 9, -3, 4, 'Today', null]);
-  eq(k.b, [['6', 15, 'b', Date.parse('2026-10-20T10:52:06.520Z') + 345600000, 0], ['r', 15, null, null, 1], ['y', 1, null, null, 0]]);
+  eq(k.b, [['6', 15, 'b', Date.parse('2026-10-20T10:52:06.520Z') + 345600000, 0, 0], ['r', 15, null, null, 1, 0], ['y', 1, null, null, 0, 1]]);
   eq(kayit({ companyPublicInfo: { deleted: true } }, 1), null, 'silinmiş şirket');
   eq(kayit({}, 1), null, 'bozuk yanıt');
 });
