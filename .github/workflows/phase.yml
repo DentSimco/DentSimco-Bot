@@ -10,6 +10,15 @@ on:
     - cron: "35 15 * * 5"
     - cron: "5 16 * * 5"
   workflow_dispatch:
+    inputs:
+      phase:
+        description: "Elle evre (boş = Simcotools'tan çek)"
+        type: choice
+        default: ""
+        options: ["", recession, normal, boom]
+      realms:
+        description: "Elle evre için realm listesi"
+        default: "0,1"
 
 permissions:
   contents: read
@@ -35,4 +44,6 @@ jobs:
       - name: Evreyi çek ve kaydet
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          MANUAL_PHASE: ${{ inputs.phase }}
+          MANUAL_REALMS: ${{ inputs.realms }}
         run: node scripts/fetchPhase.mjs

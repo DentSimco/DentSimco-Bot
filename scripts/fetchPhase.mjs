@@ -36,12 +36,41 @@ function newestRange(ranges) {
   return [...ranges].sort((a, b) => Date.parse(b.start) - Date.parse(a.start))[0];
 }
 
+// Elle evre: MANUAL_PHASE (recession | normal | boom) doluysa kaynak sorgulanmaz; evre, son cuma 15:00 UTC'den
+// bir sonraki cuma 15:00 UTC'ye kadar yazılır (oyun evreyi cuma günü değiştirir). MANUAL_REALMS: virgüllü realm listesi (varsayılan 0,1).
+const FRIDAY_MS = 7 * 86400000;
+function weekRange(t) {
+  const d = new Date(t);
+  const back = (d.getUTCDay() - 5 + 7) % 7;
+  let start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back, 15);
+  if (start > t) start -= FRIDAY_MS;
+  return { start: new Date(start).toISOString(), end: new Date(start + FRIDAY_MS).toISOString() };
+}
+
 const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 if (!raw) {
   console.error("FIREBASE_SERVICE_ACCOUNT_JSON secret'ı bulunamadı.");
   process.exit(1);
 }
 const db = new Firestore(raw);
+
+const manual = (process.env.MANUAL_PHASE || "").trim().toLowerCase();
+if (manual) {
+  if (!LABELS[manual]) {
+    console.error(`MANUAL_PHASE geçersiz: ${manual}`);
+    process.exit(1);
+  }
+  const realms = (process.env.MANUAL_REALMS || "0,1").split(",").map((x) => Number(x.trim())).filter((x) => REALMS.includes(x));
+  const { start, end } = weekRange(Date.now());
+  const data = { updatedAt: Date.now() };
+  for (const realm of realms) {
+    data[`r${realm}`] = { phase: manual, label: LABELS[manual], start, end, fetchedAt: new Date().toISOString(), manual: true };
+    console.log(`Realm ${realm}: elle ${LABELS[manual]} (${start} → ${end})`);
+  }
+  await db.commit([{ type: "merge", path: PATH, data }]);
+  console.log("system/phase güncellendi (elle).");
+  process.exit(0);
+}
 
 const stored = (await db.getMany([PATH])).get(PATH) || {};
 const now = Date.now();
