@@ -1,0 +1,13 @@
+[Unit]
+Description=DentSimco Simcotools borsa (market.mjs, 5 dakikada bir)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/dentsimco/bot-repo/deploy/vps/run-borsa.sh
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
