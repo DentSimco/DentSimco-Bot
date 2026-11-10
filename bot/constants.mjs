@@ -53,7 +53,7 @@ export function compactProduct(id, e, c = {}) {
   };
 }
 
-function fitText(obj, limit = 950_000) {
+export function fitText(obj, limit = 950_000) {
   let text = JSON.stringify(obj);
   if (text.length > limit && obj && typeof obj === 'object') {
     for (const item of Object.values(obj)) if (item && typeof item === 'object') delete item.retailData;

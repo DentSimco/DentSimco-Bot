@@ -1,5 +1,6 @@
 // DentSimco — restoran botu sınaması. Çalıştırma: node bot/restaurant_test.mjs (ağa çıkılmaz)
-import { extractRestaurant, mergeRestaurant, GAP_MS } from './restaurant.mjs';
+import { extractRestaurant, mergeRestaurant, hasSaturation, GAP_MS } from './restaurant.mjs';
+import { fitText } from './constants.mjs';
 import { fetchJson } from './common.mjs';
 
 const results = [];
@@ -50,6 +51,17 @@ test('birleştirme: 400 günden eski satırlar atılır', () => {
   const prev = { 124: { '2024-01-01': [1, 1, 1, 1], '2026-10-01': [2, 1, 1, 1] } };
   const b = mergeRestaurant(prev, {}, now);
   eq(Object.keys(b[124]), ['2026-10-01']);
+});
+test('doygunluk: sayı olan kayıt varsa yazılır, bozuk ya da boş yanıt eski veriyi ezmez', () => {
+  ok(hasSaturation([{ dbLetter: 150, quality: 5, saturation: 1.64 }]));
+  ok(!hasSaturation([]));
+  ok(!hasSaturation(null));
+  ok(!hasSaturation({ a: 1 }));
+  ok(!hasSaturation([{ dbLetter: 3, saturation: null }, { dbLetter: 'x', saturation: 1 }]));
+});
+test('doygunluk belgesi yanıtın kendisi (dashboard parseSaturation aynen okur)', () => {
+  const raw = [{ dbLetter: 150, quality: 5, saturation: 1.64, averagePrice: 13467.62, retailData: [] }];
+  eq(JSON.parse(fitText(raw)), raw);
 });
 test('istekler arası bekleme 5 dakikadan uzun', () => ok(GAP_MS > 5 * 60_000));
 

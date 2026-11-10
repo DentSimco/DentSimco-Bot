@@ -6,10 +6,13 @@
 // Firestore'a yazılan biçim (dashboard okuyabilir):
 //   meta/restaurant_r{realm}   data = JSON {v, t, p: {urunId: {AAAA-AA-GG: [tüketilenMiktar, ortFiyat, talep, ilkGörülme, düzeltme?]}}}
 //   ilkGörülme = günün satırını bota ilk geldiği an (ms); düzeltme = değer sonradan değişirse son değişim anı (ms).
+//   meta/retail_r{realm}       data = aynı yanıtın kendisi (perakende doygunluğu; Ağaçta kalite başına ayrı kayıt).
+//                              Sabit veri botu (haftalık) da yazar; burada her gün tazelenir ki perakende hesabı güncel doygunlukla çalışsın.
 // Her çalışma önceki kayıtlara ekler (yanıt yalnız ~28 gün verir, geçmiş birikir); en çok KEEP_DAYS gün tutulur.
 
 import { CONFIG, PATHS, fetchJson, parseJSON, sleep, runIfMain, addDays, utcDay, round } from './common.mjs';
 import { Firestore } from './firestore.mjs';
+import { fitText } from './constants.mjs';
 
 export const GAP_MS = 5 * 60_000 + 10_000; // 5 dakika kuralı + pay
 const KEEP_DAYS = 400;
@@ -31,6 +34,11 @@ export function extractRestaurant(list) {
     out[id] = days;
   }
   return out;
+}
+
+// Yanıt perakende doygunluğu taşıyor mu: en az bir kaydında sayı olan saturation olmalı (bozuk yanıt eski veriyi ezmesin).
+export function hasSaturation(list) {
+  return Array.isArray(list) && list.some((x) => x && Number.isFinite(Number(x.dbLetter)) && typeof x.saturation === 'number' && Number.isFinite(x.saturation));
 }
 
 // Yeni gün satırlarını önceki kayıtla birleştirir. Önceki ilk görülme korunur; miktar değişmişse düzeltme anı yazılır.
@@ -71,14 +79,27 @@ export async function main() {
   for (const [i, r] of CONFIG.realms.entries()) {
     if (i > 0) await sleep(GAP_MS);
     try {
-      const fresh = extractRestaurant(await fetchRetail(`${CONFIG.simcoBase}/api/v4/${r}/resources-retail-info/`));
-      if (!Object.keys(fresh).length) throw new Error('yanıtta restoran verisi yok');
-      const path = PATHS.meta(`restaurant_r${r}`);
-      const prev = parseJSON((await db.getMany([path])).get(path)?.data)?.p;
+      const raw = await fetchRetail(`${CONFIG.simcoBase}/api/v4/${r}/resources-retail-info/`);
+      const writes = [];
+      const notes = [];
+      // 1) Perakende doygunluğu (dashboard perakende hesabı meta/retail_r{realm} okur)
       const now = Date.now();
-      const p = mergeRestaurant(prev, fresh, now);
-      await db.commit([{ type: 'set', path, data: { data: JSON.stringify({ v: VERSION, t: now, p }), u: now } }]);
-      lines.push(`r${r}: ${Object.keys(p).length} ürün`);
+      if (hasSaturation(raw)) {
+        writes.push({ type: 'set', path: PATHS.meta(`retail_r${r}`), data: { data: fitText(raw), u: now } });
+        notes.push(`doygunluk ${raw.length} kayıt`);
+      } else notes.push('doygunluk YOK');
+      // 2) Restoran tüketimi
+      const fresh = extractRestaurant(raw);
+      if (Object.keys(fresh).length) {
+        const path = PATHS.meta(`restaurant_r${r}`);
+        const prev = parseJSON((await db.getMany([path])).get(path)?.data)?.p;
+        const p = mergeRestaurant(prev, fresh, now);
+        writes.push({ type: 'set', path, data: { data: JSON.stringify({ v: VERSION, t: now, p }), u: now } });
+        notes.push(`restoran ${Object.keys(p).length} ürün`);
+      } else notes.push('restoran verisi YOK');
+      if (writes.length) await db.commit(writes);
+      if (writes.length < 2) throw new Error(notes.join(', ')); // yazılabilen yazıldı; eksik olan işi kırmızıya çevirir
+      lines.push(`r${r}: ${notes.join(', ')}`);
     } catch (e) {
       failed++;
       lines.push(`r${r}: HATA ${e?.message || e}`);
